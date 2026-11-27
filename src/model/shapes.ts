@@ -1,4 +1,4 @@
-import type { Point, Rect, ShapeStyle, ShapeType } from './types';
+import type { Lanes, Point, Rect, Shape, ShapeStyle, ShapeType } from './types';
 
 export interface ShapeDef {
   label: string;
@@ -367,6 +367,18 @@ export const SHAPES: Record<ShapeType, ShapeDef> = {
     textBox: (w, h) => ({ x: 0, y: 0, w, h: headerH(h) }),
     style: { fill: '#f8fafc', bold: true, align: 'left' },
   },
+  swimlane: {
+    label: 'Swimlanes',
+    defaultSize: { w: 660, h: 400 },
+    outline: rectPts,
+    // stand-in drawing (3 columns) for the library preview; the canvas draws the real lanes
+    extra: (w, h) => {
+      const t = Math.min(LANE_TITLE_H, h * 0.2);
+      return `M0 ${t} H${w} M0 ${t * 2} H${w} M${w / 3} ${t} V${h} M${(2 * w) / 3} ${t} V${h}`;
+    },
+    textBox: (w, h) => ({ x: 0, y: 0, w, h: Math.min(LANE_TITLE_H, h) }),
+    style: { fill: '#ffffff', bold: true, fontSize: 16 },
+  },
   icon: {
     label: 'Icon',
     defaultSize: { w: 64, h: 64 },
@@ -428,6 +440,49 @@ function blockArrow(w: number, h: number): Point[] {
     { x: w - k, y: h }, { x: w - k, y: h * 0.75 }, { x: 0, y: h * 0.75 },
   ];
 }
+
+export const LANE_TITLE_H = 40;
+const LANE_HEAD = 34;
+const LANE_HEAD_W = 120;
+
+export const DEFAULT_LANES: Lanes = { dir: 'vertical', titles: ['Lane 1', 'Lane 2', 'Lane 3'] };
+
+export interface LaneGeom {
+  /** the title band at the top */
+  title: Rect;
+  /** each lane's full area (header included) */
+  lanes: Rect[];
+  /** each lane's name cell */
+  heads: Rect[];
+}
+
+/** Layout of a swimlane shape in local coordinates. Lanes share the space equally. */
+export function laneGeom(shape: Pick<Shape, 'w' | 'h' | 'lanes'>): LaneGeom {
+  const { w, h } = shape;
+  const lanes = shape.lanes ?? DEFAULT_LANES;
+  const n = Math.max(1, lanes.titles.length);
+  const t = Math.min(LANE_TITLE_H, h * 0.3);
+  const out: LaneGeom = { title: { x: 0, y: 0, w, h: t }, lanes: [], heads: [] };
+  if (lanes.dir === 'vertical') {
+    const lw = w / n;
+    const hh = Math.min(LANE_HEAD, (h - t) * 0.3);
+    for (let i = 0; i < n; i++) {
+      out.lanes.push({ x: i * lw, y: t, w: lw, h: h - t });
+      out.heads.push({ x: i * lw, y: t, w: lw, h: hh });
+    }
+  } else {
+    const lh = (h - t) / n;
+    const hw = Math.min(LANE_HEAD_W, w * 0.3);
+    for (let i = 0; i < n; i++) {
+      out.lanes.push({ x: 0, y: t + i * lh, w, h: lh });
+      out.heads.push({ x: 0, y: t + i * lh, w: hw, h: lh });
+    }
+  }
+  return out;
+}
+
+/** Shapes drawn behind everything and that carry the shapes inside them when moved. */
+export const isFrameShape = (t: ShapeType) => t === 'container' || t === 'swimlane';
 
 function headerH(h: number) {
   return Math.min(36, h * 0.3);
@@ -505,6 +560,7 @@ export const LIBRARY: { name: string; items: LibraryItem[] }[] = [
       { type: 'trapezoid', label: 'Manual operation' },
       { type: 'hexagon', label: 'Preparation' },
       { type: 'delay', label: 'Delay' },
+      { type: 'swimlane', label: 'Swimlanes' },
     ],
   },
 ];

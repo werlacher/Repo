@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import { SHAPES, shapePath } from '../model/shapes';
-import type { Dash, Shape } from '../model/types';
+import { SHAPES, laneGeom, shapePath } from '../model/shapes';
+import type { Dash, Rect, Shape, ShapeStyle } from '../model/types';
 import { fontString, wrapText } from '../lib/textLayout';
 
 export function dashArray(dash: Dash, w: number): string | undefined {
@@ -13,9 +13,11 @@ interface Props {
   shape: Shape;
   interactive?: boolean;
   hideText?: boolean;
+  /** swimlane only: with hideText, the lane whose name is being edited (null = the title) */
+  hideLane?: number | null;
 }
 
-export const ShapeView = memo(function ShapeView({ shape, interactive, hideText }: Props) {
+export const ShapeView = memo(function ShapeView({ shape, interactive, hideText, hideLane }: Props) {
   const { w, h, style: st } = shape;
   const transform = `translate(${shape.x} ${shape.y})${shape.rotation ? ` rotate(${shape.rotation} ${w / 2} ${h / 2})` : ''}`;
   const def = SHAPES[shape.type];
@@ -49,6 +51,8 @@ export const ShapeView = memo(function ShapeView({ shape, interactive, hideText 
         {st.stroke !== 'none' && <rect width={w} height={h} fill="none" stroke={st.stroke} strokeWidth={st.strokeWidth} />}
       </>
     );
+  } else if (shape.type === 'swimlane') {
+    body = <Swimlane shape={shape} interactive={interactive} hideLane={hideText ? hideLane ?? null : undefined} />;
   } else {
     const extra = def.extra?.(w, h);
     const dash = dashArray(st.dash, st.strokeWidth);
@@ -73,18 +77,60 @@ export const ShapeView = memo(function ShapeView({ shape, interactive, hideText 
   return (
     <g transform={transform} opacity={st.opacity < 1 ? st.opacity : undefined} {...roleProps}>
       {body}
-      {!hideText && shape.text && <ShapeText shape={shape} />}
+      {shape.text && !(hideText && (shape.type !== 'swimlane' || hideLane == null)) && <ShapeText shape={shape} />}
     </g>
   );
 });
 
 const PAD = 6;
 
+/** Title band, lane name cells and lane dividers of a swimlane shape. */
+function Swimlane({ shape, interactive, hideLane }: { shape: Shape; interactive?: boolean; hideLane?: number | null }) {
+  const { w, h, style: st } = shape;
+  const g = laneGeom(shape);
+  const dash = dashArray(st.dash, st.strokeWidth);
+  const line = { stroke: st.stroke, strokeWidth: st.strokeWidth, strokeDasharray: dash, fill: 'none' };
+  const vertical = (shape.lanes?.dir ?? 'vertical') === 'vertical';
+  const headFill = st.stroke === 'none' ? 'rgba(100,116,139,0.12)' : st.stroke;
+  const titles = shape.lanes?.titles ?? [];
+  return (
+    <>
+      <rect width={w} height={h} fill={st.fill} pointerEvents={interactive ? 'all' : undefined} />
+      <rect width={w} height={g.title.h} fill={headFill} opacity={0.16} pointerEvents="none" />
+      {g.heads.map((r, i) => (
+        <rect key={i} x={r.x} y={r.y} width={r.w} height={r.h} fill={headFill} opacity={0.08} pointerEvents="none" />
+      ))}
+      <path
+        d={[
+          `M0 ${g.title.h} H${w}`,
+          ...g.lanes.slice(1).map((r) => (vertical ? `M${r.x} ${r.y} V${h}` : `M0 ${r.y} H${w}`)),
+          ...g.heads.map((r) => (vertical ? `M${r.x} ${r.y + r.h} H${r.x + r.w}` : `M${r.x + r.w} ${r.y} V${r.y + r.h}`)),
+        ].join(' ')}
+        {...line}
+        pointerEvents="none"
+      />
+      <rect width={w} height={h} {...line} strokeLinejoin="round" pointerEvents="none" />
+      {g.heads.map((r, i) =>
+        i === hideLane ? null : (
+          <g key={i}>
+            {interactive && <rect x={r.x} y={r.y} width={r.w} height={r.h} fill="transparent" data-lane={i} />}
+            {titles[i] && <LabelText text={titles[i]} box={r} st={{ ...st, align: 'center', vAlign: 'middle', fontSize: Math.max(10, st.fontSize - 2) }} />}
+          </g>
+        ),
+      )}
+    </>
+  );
+}
+
 function ShapeText({ shape }: { shape: Shape }) {
   const { w, h, style: st } = shape;
   const tb = SHAPES[shape.type].textBox?.(w, h) ?? { x: 0, y: 0, w, h };
+  return <LabelText text={shape.text} box={tb} st={st} />;
+}
+
+function LabelText({ text, box: tb, st }: { text: string; box: Rect; st: ShapeStyle }) {
   const font = fontString(st.fontSize, st.fontFamily, st.bold, st.italic);
-  const lines = wrapText(shape.text, tb.w - PAD * 2, font);
+  const lines = wrapText(text, tb.w - PAD * 2, font);
   const lh = st.fontSize * 1.25;
   const total = lines.length * lh;
   let top: number;

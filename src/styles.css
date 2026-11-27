@@ -142,6 +142,9 @@ a { color: var(--accent); }
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border-radius: 6px;
   border: 1px dashed var(--dash); background: var(--field);
 }
+.wide-btn.primary { border-style: solid; border-color: var(--accent); color: var(--accent); margin-bottom: 8px; }
+.chip { border: 1px solid var(--line); background: var(--field); border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--ink-2); }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
 .wide-btn:hover { border-color: var(--accent); color: var(--accent); }
 .muted { color: var(--muted); }
 .small { font-size: 11.5px; line-height: 1.4; }

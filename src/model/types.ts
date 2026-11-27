@@ -43,6 +43,7 @@ export type ShapeType =
   | 'cross'
   | 'chevron'
   | 'container'
+  | 'swimlane'
   | 'icon'
   | 'image';
 
@@ -92,6 +93,14 @@ export interface Shape extends ElementBase {
   icon?: IconData;
   /** For type 'image': an imported picture or SVG, stored as a data URL. */
   image?: ImageData;
+  /** For type 'swimlane': the lanes under the title band. */
+  lanes?: Lanes;
+}
+
+export interface Lanes {
+  /** 'vertical' = side-by-side columns, 'horizontal' = stacked rows */
+  dir: 'vertical' | 'horizontal';
+  titles: string[];
 }
 
 export interface IconData {

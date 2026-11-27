@@ -320,3 +320,19 @@ describe('file format', () => {
     expect(() => parseDoc('{"hello": 1}')).toThrow();
   });
 });
+
+describe('swimlanes', () => {
+  it('splits columns evenly under the title band', async () => {
+    const { laneGeom } = await import('../src/model/shapes');
+    const g = laneGeom({ w: 600, h: 400, lanes: { dir: 'vertical', titles: ['A', 'B', 'C'] } });
+    expect(g.title.h).toBe(40);
+    expect(g.lanes.map((r) => r.x)).toEqual([0, 200, 400]);
+    expect(g.lanes[0]).toMatchObject({ y: 40, w: 200, h: 360 });
+  });
+  it('stacks rows with a name cell on the left', async () => {
+    const { laneGeom } = await import('../src/model/shapes');
+    const g = laneGeom({ w: 600, h: 440, lanes: { dir: 'horizontal', titles: ['A', 'B'] } });
+    expect(g.lanes.map((r) => r.y)).toEqual([40, 240]);
+    expect(g.heads[1]).toMatchObject({ x: 0, w: 120, h: 200 });
+  });
+});

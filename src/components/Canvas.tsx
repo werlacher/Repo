@@ -8,7 +8,7 @@ import {
   snapTo, sub, unionRects,
 } from '../model/geometry';
 import { computeRoute, routePath } from '../model/connectors';
-import { SHAPES } from '../model/shapes';
+import { SHAPES, isFrameShape } from '../model/shapes';
 import type { Connector, DiagramDoc, DiagramElement, Endpoint, Point, Rect, Shape, ShapeType, Side } from '../model/types';
 import { ShapeView } from './ShapeView';
 import { ConnectorView } from './ConnectorView';
@@ -49,6 +49,7 @@ export function Canvas() {
   const tool = useApp((s) => s.tool);
   const settings = useApp((s) => s.settings);
   const editingId = useApp((s) => s.editingId);
+  const editingLane = useApp((s) => s.editingLane);
   const spaceHeld = useApp((s) => s.spaceHeld);
   const background = useApp((s) => s.doc.background);
 
@@ -257,7 +258,22 @@ export function Canvas() {
       const orig = new Map<string, Point>();
       const origConn = new Map<string, { from: Endpoint; to: Endpoint; waypoints?: Point[] }>();
       const rects: Rect[] = [];
+      // containers and swimlanes carry the shapes that sit entirely inside them
+      const frames = pageNow.elements.filter((el): el is Shape => el.kind === 'shape' && ids.has(el.id) && !el.locked && isFrameShape(el.type));
+      const carried = new Set<string>();
+      for (const f of frames) {
+        const fb = shapeBounds(f);
+        for (const el of pageNow.elements) {
+          if (el.kind !== 'shape' || el.id === f.id || el.locked || ids.has(el.id)) continue;
+          const b = shapeBounds(el);
+          if (b.x >= fb.x && b.y >= fb.y && b.x + b.w <= fb.x + fb.w && b.y + b.h <= fb.y + fb.h) carried.add(el.id);
+        }
+      }
       for (const el of pageNow.elements) {
+        if (carried.has(el.id) && el.kind === 'shape') {
+          orig.set(el.id, { x: el.x, y: el.y });
+          continue;
+        }
         if (!ids.has(el.id) || el.locked) continue;
         if (el.kind === 'shape') {
           orig.set(el.id, { x: el.x, y: el.y });
@@ -304,7 +320,7 @@ export function Canvas() {
         d.moved = true;
         const newGuides: Guide[] = [];
         if (d.bbox && !e.altKey) {
-          const snapped = snapMove(d.bbox, dx, dy, d.ids, st, newGuides);
+          const snapped = snapMove(d.bbox, dx, dy, new Set([...d.ids, ...d.orig.keys()]), st, newGuides);
           dx = snapped.dx;
           dy = snapped.dy;
         }
@@ -484,7 +500,8 @@ export function Canvas() {
           setState({ selection: expandToGroups([el.id]) });
           return;
         }
-        setState({ selection: [g.dataset.id], editingId: g.dataset.id });
+        const lane = (document.elementsFromPoint(e.clientX, e.clientY).find((x) => x instanceof SVGElement && x.dataset.lane && x.closest('[data-role="shape"]') === g) as SVGElement | undefined)?.dataset.lane;
+        setState({ selection: [g.dataset.id], editingId: g.dataset.id, editingLane: lane != null ? Number(lane) : null });
         return;
       }
       if (el === svgRef.current) break;
@@ -584,7 +601,7 @@ export function Canvas() {
         <g transform={`translate(${view.x} ${view.y}) scale(${z})`}>
           {page.elements.map((el) =>
             el.kind === 'shape' ? (
-              <ShapeView key={el.id} shape={el} interactive hideText={editingId === el.id} />
+              <ShapeView key={el.id} shape={el} interactive hideText={editingId === el.id} hideLane={editingLane} />
             ) : (
               <ConnectorView key={el.id} conn={el} shapes={shapes} interactive hideLabel={editingId === el.id} labelBackground={background} zoom={z} />
             ),
