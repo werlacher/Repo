@@ -1,0 +1,33 @@
+{
+  "name": "flowboard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A personal, local-only diagramming app (flowcharts, diagrams, wireframes).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite --open",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --open",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@iconify-json/logos": "^1.2.21",
+    "@iconify-json/lucide": "^1.2.160",
+    "@iconify-json/material-symbols": "^1.2.101",
+    "@iconify-json/ph": "^1.2.2",
+    "@iconify-json/simple-icons": "^1.2.104",
+    "@iconify-json/tabler": "^1.2.47",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}
