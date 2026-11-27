@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getState, redo, setState, undo, useApp, loadDocument } from '../store';
 import { newDoc } from '../model/defaults';
-import { exportPng, exportSvg, forgetFileHandle, importImageFiles, openFile, pickFiles, saveFile, writeAutosave } from '../lib/io';
+import { exportPdf, exportPng, exportSvg, forgetFileHandle, importImageFiles, openFile, pickFiles, saveFile, writeAutosave } from '../lib/io';
 import { Icon, IconButton } from './ui';
 import type { Tool } from '../model/types';
 
@@ -67,12 +67,8 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
 
   return (
     <header className="topbar">
-      <div className="brand" title="Flowboard">
-        <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden>
-          <rect x="2" y="4" width="12" height="10" rx="2" fill="#0d9488" />
-          <rect x="18" y="18" width="12" height="10" rx="2" fill="#f59e0b" />
-          <path d="M8 14v9h10" stroke="#334155" strokeWidth="2" fill="none" />
-        </svg>
+      <div className="brand" title="Esquisso">
+        <img src="./logo.svg" width={28} height={28} alt="Esquisso" />
       </div>
       <div className="title-block">
         <input
@@ -103,7 +99,8 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
             { label: 'PNG image', onClick: () => exportPng(false) },
             { label: 'PNG, transparent background', onClick: () => exportPng(true) },
             { label: 'SVG vector', onClick: () => exportSvg() },
-            ...(hasSelection ? (['sep', { label: 'Selection as PNG', onClick: () => exportPng(false, 2, true) }, { label: 'Selection as SVG', onClick: () => exportSvg(true) }] as const) : []),
+            { label: 'PDF document', onClick: () => exportPdf() },
+            ...(hasSelection ? (['sep', { label: 'Selection as PNG', onClick: () => exportPng(false, 2, true) }, { label: 'Selection as SVG', onClick: () => exportSvg(true) }, { label: 'Selection as PDF', onClick: () => exportPdf(true) }] as const) : []),
           ]}
         />
       </nav>

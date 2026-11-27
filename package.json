@@ -1,5 +1,5 @@
 {
-  "name": "flowboard",
+  "name": "esquisso",
   "private": true,
   "version": "0.1.0",
   "description": "A personal, local-only diagramming app (flowcharts, diagrams, wireframes).",
@@ -20,8 +20,10 @@
     "@iconify-json/ph": "^1.2.2",
     "@iconify-json/simple-icons": "^1.2.104",
     "@iconify-json/tabler": "^1.2.47",
+    "jspdf": "^3.0.4",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "svg2pdf.js": "^2.9.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.8",

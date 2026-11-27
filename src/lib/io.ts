@@ -17,7 +17,7 @@ export interface LibraryDragPayload {
 
 const AUTOSAVE_KEY = 'flowboard.autosave.v1';
 const SETTINGS_KEY = 'flowboard.settings.v1';
-const FILE_EXT = '.flowboard.json';
+const FILE_EXT = '.esquisso.json';
 
 // ---------------------------------------------------------------------------
 // (De)serialization
@@ -30,7 +30,7 @@ export function serialize(doc: DiagramDoc): string {
 export function parseDoc(text: string): DiagramDoc {
   const raw = JSON.parse(text);
   if (!raw || typeof raw !== 'object' || raw.app !== 'flowboard' || !Array.isArray(raw.pages)) {
-    throw new Error('This file is not a Flowboard diagram.');
+    throw new Error('This file is not an Esquisso diagram.');
   }
   const pages: Page[] = raw.pages.map((p: Partial<Page>, i: number) => ({
     id: typeof p.id === 'string' ? p.id : newId('p'),
@@ -120,7 +120,7 @@ export function writeSettings(s: Settings) {
 // File System Access API handle (Chromium browsers): lets Save write back to the same file.
 let fileHandle: any = null;
 
-const pickerTypes = [{ description: 'Flowboard diagram', accept: { 'application/json': ['.json'] } }];
+const pickerTypes = [{ description: 'Esquisso diagram', accept: { 'application/json': ['.json'] } }];
 
 function fileBaseName(title: string) {
   return (title.trim() || 'diagram').replace(/[\\/:*?"<>|]+/g, '-');
@@ -263,6 +263,34 @@ export async function exportPng(transparent = false, scale = 2, selectionOnly = 
     toast(err?.message ?? 'Export failed.');
   } finally {
     URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Vector PDF, one page sized to the diagram (or the selection). The PDF libraries
+ * are loaded only when this runs, so they don't slow down startup.
+ */
+export async function exportPdf(selectionOnly = false) {
+  const out = exportSvgString({ selectionOnly });
+  if (!out) return toast('Nothing to export on this page.');
+  try {
+    const [{ jsPDF }, { svg2pdf }] = await Promise.all([import('jspdf'), import('svg2pdf.js')]);
+    const el = new DOMParser().parseFromString(out.svg, 'image/svg+xml').documentElement as unknown as SVGSVGElement;
+    // svg2pdf measures text, so the SVG must be in the document while it converts
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-100000px;top:0;visibility:hidden';
+    host.appendChild(document.importNode(el, true));
+    document.body.appendChild(host);
+    try {
+      const pdf = new jsPDF({ orientation: out.w >= out.h ? 'landscape' : 'portrait', unit: 'pt', format: [out.w, out.h], compress: true });
+      pdf.setDocumentProperties({ title: getState().doc.title, creator: 'Esquisso' });
+      await svg2pdf(host.firstElementChild as SVGElement, pdf, { x: 0, y: 0, width: out.w, height: out.h });
+      downloadBlob(pdf.output('blob'), exportName('pdf'));
+    } finally {
+      host.remove();
+    }
+  } catch (err: any) {
+    toast(err?.message ?? 'PDF export failed.');
   }
 }
 

@@ -1,5 +1,5 @@
 @echo off
-rem Double-click to start Flowboard on Windows. Keep this window open while you use the app.
+rem Double-click to start Esquisso on Windows. Keep this window open while you use the app.
 rem Runs in cmd.exe and calls npm.cmd directly, so PowerShell's script policy doesn't apply.
 setlocal
 cd /d "%~dp0"
@@ -18,6 +18,6 @@ if not exist "node_modules\" (
     exit /b 1
   )
 )
-echo Starting Flowboard at http://127.0.0.1:5173 - keep this window open.
+echo Starting Esquisso at http://127.0.0.1:5173 - keep this window open.
 call npm.cmd start
 pause

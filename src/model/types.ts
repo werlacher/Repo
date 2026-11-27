@@ -175,6 +175,7 @@ export interface Page {
 }
 
 export interface DiagramDoc {
+  /** File format id. Kept from the app's first name so older files still open. */
   app: 'flowboard';
   version: 1;
   title: string;

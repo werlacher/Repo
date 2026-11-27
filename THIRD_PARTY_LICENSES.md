@@ -1,6 +1,6 @@
 # Third-party licenses
 
-Flowboard bundles the icon sets below (through the `@iconify-json/*` npm
+Esquisso bundles the icon sets below (through the `@iconify-json/*` npm
 packages, which repackage each set unchanged in Iconify's JSON format). Every
 set is free to use, including in diagrams you export. Only sets with
 permissive licenses (ISC, MIT, Apache 2.0, CC0) are included.
@@ -115,3 +115,10 @@ under CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
 The app is built with React (MIT, Meta Platforms, Inc.) and Vite (MIT). Their
 license files ship in `node_modules` and are kept in the production bundle's
 legal comments.
+
+## PDF export
+
+| Library | Package | Author | License |
+| --- | --- | --- | --- |
+| jsPDF | `jspdf` | James Hall, yWorks GmbH and contributors | MIT |
+| svg2pdf.js | `svg2pdf.js` | yWorks GmbH | MIT |
