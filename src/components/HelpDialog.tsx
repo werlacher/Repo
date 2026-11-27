@@ -24,6 +24,8 @@ const ROWS: [string, string][] = [
   ['Corner handles on a multi-selection', 'Resize everything together (Shift keeps proportions)'],
   [`${mod} ] / [ (add Shift)`, 'Bring forward / send backward (to front / back)'],
   [`${mod} B / I / U`, 'Bold, italic, underline'],
+  [`${mod} Alt C / ${mod} Alt V`, 'Copy style / paste style onto the selection'],
+  ['Right-click', 'Menu with the most common actions'],
   [`${mod} S / ${mod} Shift S / ${mod} O`, 'Save, save as, open'],
   ['Delete / Backspace', 'Delete selection'],
 ];

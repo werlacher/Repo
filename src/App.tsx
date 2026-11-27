@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   copySelection, currentPage, cutSelection, deleteSelection, duplicateSelection, fitToContent, getState, groupSelection, hasClipboard,
-  toggleLockSelection, ungroupSelection,
+  toggleLockSelection, ungroupSelection, copyStyle, pasteStyle,
   nudgeSelection, paste, redo, reorder, selectAll, setState, subscribe, undo, updateShapeStyle, useApp, zoomBy, zoomTo,
 } from './store';
 import { importImageFiles, openFile, saveFile, writeAutosave, writeSettings } from './lib/io';
@@ -11,6 +11,7 @@ import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { BottomBar } from './components/BottomBar';
 import { HelpDialog } from './components/HelpDialog';
+import { ContextMenu } from './components/ContextMenu';
 import type { Shape, Tool } from './model/types';
 
 const TOOL_KEYS: Record<string, Tool> = {
@@ -50,6 +51,8 @@ export function App() {
         const handled = (() => {
           if (k === 'z' && !e.shiftKey) return undo(), true;
           if ((k === 'z' && e.shiftKey) || k === 'y') return redo(), true;
+          if (e.altKey && e.code === 'KeyC') return copyStyle(), true;
+          if (e.altKey && e.code === 'KeyV') return pasteStyle(), true;
           if (k === 'c') return copySelection(), true;
           if (k === 'x') return cutSelection(), true;
           if (k === 'v') return hasClipboard() ? (paste(), true) : false; // fall through to system paste (images)
@@ -130,6 +133,18 @@ export function App() {
     };
   }, []);
 
+  // Theme: light, dark or follow the system setting.
+  const theme = useApp((s) => s.settings.theme);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      document.documentElement.dataset.theme = theme === 'system' ? (mq.matches ? 'dark' : 'light') : theme;
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [theme]);
+
   // Autosave the document and settings to this browser (debounced).
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -172,6 +187,7 @@ export function App() {
         </div>
         <Inspector />
       </div>
+      <ContextMenu />
       {help && <HelpDialog onClose={() => setHelp(false)} />}
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

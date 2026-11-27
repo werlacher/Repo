@@ -17,6 +17,20 @@ npm start        # opens http://127.0.0.1:5173 in your browser
 The server only listens on `127.0.0.1`, so nothing is reachable from other
 machines. Stop it with `Ctrl+C`.
 
+**No terminal?** Double-click `start-windows.bat` (Windows) or
+`start-mac.command` (macOS; the first time, right-click › Open). It installs
+what's needed on first run, starts the app and opens your browser. Keep that
+window open while you work.
+
+### If the page doesn't open or stays blank
+
+- Use the address the terminal prints, `http://127.0.0.1:5173`. Opening
+  `index.html` by double-clicking it (a `file://` address) does not work:
+  browsers block the app that way. The page tells you when this happens.
+- Keep the terminal window running; closing it stops the app.
+- Check the terminal for errors. `node -v` must print v18 or newer.
+- Still blank? Press F12, open **Console**, and look for red errors.
+
 To build a static copy you can open without the dev server:
 
 ```bash
@@ -65,6 +79,12 @@ a `.flowboard.json` file instead.
   neighbours (hold Alt to move freely).
 - **Styling**: fill, line color/width/dash, opacity, font, size, color,
   bold/italic/underline, horizontal and vertical text alignment.
+- **Right-click menu** on shapes, lines and empty canvas with the common
+  actions (cut/copy/paste, order, group, lock, add text here…).
+- **Copy and paste style** (Ctrl/⌘+Alt+C, Ctrl/⌘+Alt+V): apply one shape's or
+  line's look to other items, like a format painter.
+- **Dark theme**: the sun/moon button in the top bar switches between light,
+  dark and following your system setting. Diagrams keep their own background.
 - **Undo/redo** for everything (Ctrl/⌘+Z, Ctrl/⌘+Shift+Z).
 - **Pages**: several pages per diagram; double-click a tab to rename.
 - **Save / open** `.flowboard.json` files, **autosave** in the browser, and

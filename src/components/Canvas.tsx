@@ -495,6 +495,22 @@ export function Canvas() {
     setState({ editingId: s.id });
   }
 
+  function onContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    if (drag.current) return;
+    const st = getState();
+    const world = toWorld(e.clientX, e.clientY);
+    let id: string | null = null;
+    for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+      const g = el.closest('[data-role="shape"],[data-role="connector"]') as SVGElement | null;
+      if (g?.dataset.id) { id = g.dataset.id; break; }
+      if (el === svgRef.current) break;
+    }
+    if (id && !st.selection.includes(id)) setState({ selection: expandToGroups([id]) });
+    if (!id) setState({ selection: [] });
+    setState({ contextMenu: { x: e.clientX, y: e.clientY, world: snapPoint(world), onElement: !!id } });
+  }
+
   function onDragOver(e: DragEvent) {
     if (e.dataTransfer.types.includes(LIBRARY_MIME) || e.dataTransfer.types.includes('Files')) {
       e.preventDefault();
@@ -547,7 +563,7 @@ export function Canvas() {
         onPointerCancel={onPointerUp}
         onPointerLeave={() => !drag.current && setHoverId(null)}
         onDoubleClick={onDoubleClick}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={onContextMenu}
         onDragOver={onDragOver}
         onDrop={onDrop}
       >

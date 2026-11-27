@@ -275,6 +275,27 @@ describe('groups and locks', () => {
   });
 });
 
+describe('style clipboard', () => {
+  beforeEach(() => store.resetStore());
+
+  it('copies a shape style onto other shapes and a line style onto lines', () => {
+    const a = store.makeShape('rectangle', { x: 0, y: 0 });
+    const b = store.makeShape('ellipse', { x: 300, y: 0 });
+    const c1 = store.makeConnector({ x: 0, y: 0 }, { x: 10, y: 0 }, { stroke: '#ff0000', routing: 'curved' });
+    const c2 = store.makeConnector({ x: 0, y: 50 }, { x: 10, y: 50 });
+    a.style = { ...a.style, fill: '#123456', bold: true };
+    store.addElements([a, b, c1, c2]);
+    store.setState({ selection: [a.id, c1.id] });
+    expect(store.copyStyle()).toBe(true);
+    store.setState({ selection: [b.id, c2.id] });
+    store.pasteStyle();
+    const [, nb, , nc2] = store.currentPage().elements as any[];
+    expect(nb.style).toMatchObject({ fill: '#123456', bold: true });
+    expect(nc2.style.stroke).toBe('#ff0000');
+    expect(nc2.style.routing).toBe('orthogonal'); // keeps its own routing
+  });
+});
+
 describe('file format', () => {
   it('round-trips a document and fills in missing style fields', () => {
     store.resetStore();

@@ -20,7 +20,7 @@ function ShapePreview({ type }: { type: ShapeType }) {
   const h = def.defaultSize.h * k;
   if (type === 'text') {
     return (
-      <svg width="40" height="30" viewBox="0 0 40 30"><text x="20" y="20" textAnchor="middle" fontSize="15" fontFamily="Georgia, serif" fill="#334155">Aa</text></svg>
+      <svg width="40" height="30" viewBox="0 0 40 30"><text x="20" y="20" textAnchor="middle" fontSize="15" fontFamily="Georgia, serif" fill="currentColor">Aa</text></svg>
     );
   }
   const extra = def.extra?.(w, h);
@@ -82,7 +82,7 @@ function ShapesPanel() {
 
 function IconPreview({ icon }: { icon: IconData }) {
   return (
-    <svg width="28" height="28" viewBox={`${icon.vbX} ${icon.vbY} ${icon.vbW} ${icon.vbH}`} color="#334155" dangerouslySetInnerHTML={{ __html: icon.body }} />
+    <svg width="28" height="28" viewBox={`${icon.vbX} ${icon.vbY} ${icon.vbW} ${icon.vbH}`} color="currentColor" dangerouslySetInnerHTML={{ __html: icon.body }} />
   );
 }
 

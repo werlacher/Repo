@@ -13,6 +13,16 @@ export interface Settings {
   snapToGrid: boolean;
   snapToObjects: boolean;
   gridSize: number;
+  theme: 'system' | 'light' | 'dark';
+}
+
+export interface ContextMenuState {
+  /** client (screen) position */
+  x: number;
+  y: number;
+  /** world position, for "add here" actions */
+  world: Point;
+  onElement: boolean;
 }
 
 export interface View {
@@ -38,11 +48,12 @@ export interface AppState {
   /** name of the file the doc was last opened from / saved to */
   fileName: string | null;
   toast: string | null;
+  contextMenu: ContextMenuState | null;
 }
 
 const HISTORY_LIMIT = 200;
 
-export const DEFAULT_SETTINGS: Settings = { showGrid: true, snapToGrid: true, snapToObjects: true, gridSize: 20 };
+export const DEFAULT_SETTINGS: Settings = { showGrid: true, snapToGrid: true, snapToObjects: true, gridSize: 20, theme: 'system' };
 
 function initialState(): AppState {
   const doc = newDoc();
@@ -61,6 +72,7 @@ function initialState(): AppState {
     dirty: false,
     fileName: null,
     toast: null,
+    contextMenu: null,
   };
 }
 
@@ -355,6 +367,39 @@ export function nudgeSelection(dx: number, dy: number) {
       }),
     { coalesceKey: 'nudge' },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Style clipboard (format painter)
+
+let styleClipboard: { shape?: ShapeStyle; connector?: ConnectorStyle } = {};
+
+export function copyStyle(): boolean {
+  const sel = selectedElements();
+  const shape = sel.find((e): e is Shape => e.kind === 'shape');
+  const conn = sel.find((e): e is Connector => e.kind === 'connector');
+  if (!shape && !conn) return false;
+  styleClipboard = { shape: shape ? { ...shape.style } : styleClipboard.shape, connector: conn ? { ...conn.style } : styleClipboard.connector };
+  toast('Style copied. Select other items and press Ctrl+Alt+V to apply it.');
+  return true;
+}
+
+export function hasStyleClipboard() {
+  return !!(styleClipboard.shape || styleClipboard.connector);
+}
+
+export function pasteStyle() {
+  const ids = state.selection;
+  if (!ids.length || !hasStyleClipboard()) return;
+  const { shape, connector } = styleClipboard;
+  mapElements(ids, (e) => {
+    if (e.kind === 'shape' && shape) return { ...e, style: { ...shape } };
+    if (e.kind === 'connector' && connector) {
+      // keep this line's routing so its bend points stay valid
+      return { ...e, style: { ...connector, routing: e.style.routing } };
+    }
+    return e;
+  });
 }
 
 // ---------------------------------------------------------------------------
