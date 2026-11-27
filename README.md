@@ -28,6 +28,12 @@ window open while you work.
   `index.html` by double-clicking it (a `file://` address) does not work:
   browsers block the app that way. The page tells you when this happens.
 - Keep the terminal window running; closing it stops the app.
+- **Windows PowerShell says "running scripts is disabled on this system"**:
+  type `npm.cmd install` and `npm.cmd start` instead of `npm …`, or use
+  `start-windows.bat`. (Alternatively allow local scripts once with
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.)
+- Run the commands inside the project folder (`cd` into it first), not in
+  your home folder.
 - Check the terminal for errors. `node -v` must print v18 or newer.
 - Still blank? Press F12, open **Console**, and look for red errors.
 
