@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@iconify-json/flag": "^1.2.16",
     "@iconify-json/logos": "^1.2.21",
     "@iconify-json/lucide": "^1.2.160",
     "@iconify-json/material-symbols": "^1.2.101",

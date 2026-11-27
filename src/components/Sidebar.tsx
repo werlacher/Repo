@@ -3,7 +3,7 @@ import { addShapeAt, freeSpotNearCenter, useApp } from '../store';
 import { LIBRARY, SHAPES, shapePath } from '../model/shapes';
 import type { IconData, ShapeType } from '../model/types';
 import { LIBRARY_MIME, importImageFiles, pickFiles, type LibraryDragPayload } from '../lib/io';
-import { ICON_SETS, iconNames, loadSet, searchIcons, toIconData, type IconifyJSON } from '../lib/icons';
+import { ICON_SETS, iconKeywords, iconNames, loadSet, searchIcons, toIconData, type IconifyJSON } from '../lib/icons';
 import { Icon } from './ui';
 
 const SHORTCUT: Partial<Record<ShapeType, string>> = { rectangle: 'R', ellipse: 'O', diamond: 'D', note: 'N' };
@@ -101,7 +101,7 @@ function IconsPanel() {
   }, [prefix]);
 
   const names = useMemo(() => (set ? iconNames(set) : []), [set]);
-  const results = useMemo(() => searchIcons(names, query), [names, query]);
+  const results = useMemo(() => searchIcons(names, query, 240, (n) => iconKeywords(prefix, n)), [names, query, prefix]);
   const info = ICON_SETS.find((s) => s.prefix === prefix)!;
 
   return (
