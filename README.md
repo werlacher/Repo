@@ -2,6 +2,8 @@
 
 # Esquisso
 
+> Guia de instalação em português: [COMO-INSTALAR.md](COMO-INSTALAR.md)
+
 A personal diagramming app that runs entirely on your own computer: flowcharts,
 process maps, architecture sketches and wireframes. No account, no cloud, no
 tracking. Diagrams live in files you save, plus an automatic backup in your
