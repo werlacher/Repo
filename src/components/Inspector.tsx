@@ -1,6 +1,6 @@
 import {
   alignSelection, currentPage, deleteSelection, distributeSelection, duplicateSelection, groupSelection, reorder, setState,
-  toggleLockSelection, ungroupSelection,
+  toggleLockSelection, ungroupSelection, setLaneCount, setLaneDir,
   updateConnectorStyle, updateShapeGeometry, updateShapeStyle, useApp, commitDoc, getState, resetRoute,
 } from '../store';
 import { FONTS } from '../model/defaults';
@@ -56,6 +56,20 @@ function ShapeSection({ shapes }: { shapes: Shape[] }) {
             <NumberField label="H" value={single.h} min={10} onCommit={(v) => updateShapeGeometry(single.id, { h: v })} />
             <NumberField label="Rotate" value={single.rotation} suffix="°" onCommit={(v) => updateShapeGeometry(single.id, { rotation: ((v % 360) + 360) % 360 })} />
           </div>
+        </Section>
+      )}
+      {single?.lanes && (
+        <Section title="Lanes">
+          <div className={`grid-2${single.locked ? ' disabled' : ''}`}>
+            <NumberField label="Lanes" value={single.lanes.titles.length} min={1} max={20} onCommit={(v) => setLaneCount(single.id, v)} />
+            <SelectField
+              label="Layout"
+              value={single.lanes.dir}
+              options={[{ value: 'vertical', label: 'Columns' }, { value: 'horizontal', label: 'Rows' }]}
+              onChange={(v) => setLaneDir(single.id, v)}
+            />
+          </div>
+          <p className="muted small">Double-click the title or a lane name to rename it. Shapes inside move with the lanes.</p>
         </Section>
       )}
       <Section title={allMedia ? 'Appearance' : 'Fill & line'}>

@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { defaultConnectorStyle, defaultShapeStyle, newDoc, newId, newPage } from './model/defaults';
 import { computeRoute, routeBoundsPoints, type ShapeLookup } from './model/connectors';
 import { boundsOfPoints, shapeBounds, unionRects } from './model/geometry';
-import { SHAPES } from './model/shapes';
+import { DEFAULT_LANES, LANE_TITLE_H, SHAPES, isFrameShape } from './model/shapes';
 import type {
   Connector, ConnectorStyle, DiagramDoc, DiagramElement, Endpoint, IconData, ImageData, Page, Point, Rect, Shape,
   ShapeStyle, ShapeType, Tool,
@@ -41,6 +41,8 @@ export interface AppState {
   viewport: { w: number; h: number };
   settings: Settings;
   editingId: string | null;
+  /** When editing a swimlane: which lane name is being edited (null = the title). */
+  editingLane: number | null;
   spaceHeld: boolean;
   past: DiagramDoc[];
   future: DiagramDoc[];
@@ -66,6 +68,7 @@ function initialState(): AppState {
     viewport: { w: 800, h: 600 },
     settings: { ...DEFAULT_SETTINGS },
     editingId: null,
+    editingLane: null,
     spaceHeld: false,
     past: [],
     future: [],
@@ -86,6 +89,8 @@ export function getState(): AppState {
 export function setState(patch: Partial<AppState> | ((s: AppState) => Partial<AppState>)) {
   const p = typeof patch === 'function' ? patch(state) : patch;
   state = { ...state, ...p };
+  // starting or ending a text edit without naming a lane edits the shape's own text
+  if ('editingId' in p && !('editingLane' in p)) state.editingLane = null;
   listeners.forEach((l) => l());
 }
 
@@ -235,8 +240,9 @@ export function makeShape(type: ShapeType, center: Point, size?: { w: number; h:
     w,
     h,
     rotation: 0,
-    text: '',
+    text: type === 'swimlane' ? 'Title' : '',
     style: { ...defaultShapeStyle(), ...def.style },
+    ...(type === 'swimlane' ? { lanes: { ...DEFAULT_LANES, titles: [...DEFAULT_LANES.titles] } } : {}),
   };
 }
 
@@ -245,7 +251,7 @@ export function makeConnector(from: Endpoint, to: Endpoint, style?: Partial<Conn
 }
 
 /** Containers go behind everything else so they can hold other shapes. */
-const isBackdrop = (e: DiagramElement) => e.kind === 'shape' && e.type === 'container';
+const isBackdrop = (e: DiagramElement) => e.kind === 'shape' && isFrameShape(e.type);
 
 export function addElements(els: DiagramElement[], select = true) {
   const back = els.filter(isBackdrop);
@@ -357,6 +363,38 @@ export function setText(id: string, text: string) {
   }
   if (old === text) return;
   mapElements([id], (e) => (e.kind === 'shape' ? { ...e, text } : { ...e, label: text }));
+}
+
+/** Rename one lane of a swimlane shape. */
+export function setLaneTitle(id: string, index: number, text: string) {
+  mapElements([id], (e) => {
+    if (e.kind !== 'shape' || !e.lanes || e.lanes.titles[index] === text) return e;
+    const titles = e.lanes.titles.map((t, i) => (i === index ? text : t));
+    return { ...e, lanes: { ...e.lanes, titles } };
+  });
+}
+
+/**
+ * Change how many lanes a swimlane has. The shape grows or shrinks by one lane's
+ * width (or height) per lane so existing lanes keep their size.
+ */
+export function setLaneCount(id: string, count: number) {
+  mapElements([id], (e) => {
+    if (e.kind !== 'shape' || !e.lanes || e.locked) return e;
+    const n = Math.max(1, Math.min(20, Math.round(count)));
+    const old = e.lanes.titles.length;
+    if (n === old) return e;
+    const titles = Array.from({ length: n }, (_, i) => e.lanes!.titles[i] ?? `Lane ${i + 1}`);
+    const lanes = { ...e.lanes, titles };
+    if (e.lanes.dir === 'vertical') return { ...e, lanes, w: Math.max(60, Math.round((e.w / old) * n)) };
+    const t = Math.min(LANE_TITLE_H, e.h * 0.3);
+    return { ...e, lanes, h: Math.max(80, Math.round(t + ((e.h - t) / old) * n)) };
+  });
+}
+
+/** Switch a swimlane between columns and rows. The outer box stays put so the shapes inside stay inside. */
+export function setLaneDir(id: string, dir: 'vertical' | 'horizontal') {
+  mapElements([id], (e) => (e.kind !== 'shape' || !e.lanes || e.locked || e.lanes.dir === dir ? e : { ...e, lanes: { ...e.lanes, dir } }));
 }
 
 export function nudgeSelection(dx: number, dy: number) {

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { currentPage, getState, setState, setText, shapeLookup, useApp } from '../store';
+import { currentPage, getState, setLaneTitle, setState, setText, shapeLookup, useApp } from '../store';
 import { computeRoute } from '../model/connectors';
-import { SHAPES } from '../model/shapes';
+import { SHAPES, laneGeom } from '../model/shapes';
 import { localToWorld } from '../model/geometry';
 
 /** In-place text editing overlay for a shape or connector label. */
@@ -10,7 +10,8 @@ export function TextEditor() {
   const page = useApp((s) => currentPage(s));
   const view = useApp((s) => s.view);
   const el = page.elements.find((e) => e.id === editingId);
-  const [value, setValue] = useState(() => (el ? (el.kind === 'shape' ? el.text : el.label) : ''));
+  const lane = useApp((s) => (el?.kind === 'shape' && el.lanes && s.editingLane != null && s.editingLane < el.lanes.titles.length ? s.editingLane : null));
+  const [value, setValue] = useState(() => (el ? (el.kind === 'shape' ? (lane != null ? el.lanes!.titles[lane] : el.text) : el.label) : ''));
   const ref = useRef<HTMLTextAreaElement>(null);
   const done = useRef(false);
 
@@ -37,14 +38,17 @@ export function TextEditor() {
   const finish = (commit: boolean) => {
     if (done.current) return;
     done.current = true;
-    if (commit) setText(editingId, value);
+    if (commit) {
+      if (lane != null) setLaneTitle(editingId, lane, value);
+      else setText(editingId, value);
+    }
     if (getState().editingId === editingId) setState({ editingId: null });
   };
 
   const z = view.zoom;
   let style: React.CSSProperties;
   if (el.kind === 'shape') {
-    const tb = SHAPES[el.type].textBox?.(el.w, el.h) ?? { x: 0, y: 0, w: el.w, h: el.h };
+    const tb = lane != null ? laneGeom(el).heads[lane] : SHAPES[el.type].textBox?.(el.w, el.h) ?? { x: 0, y: 0, w: el.w, h: el.h };
     const media = el.type === 'icon' || el.type === 'image';
     const center = localToWorld(el, { x: tb.x + tb.w / 2, y: media ? tb.y : tb.y + tb.h / 2 });
     const st = el.style;
@@ -54,10 +58,10 @@ export function TextEditor() {
       width: Math.max(40, tb.w - 12) * z,
       transform: `translate(-50%, ${media ? '0' : '-50%'}) rotate(${el.rotation}deg)`,
       fontFamily: st.fontFamily,
-      fontSize: st.fontSize * z,
+      fontSize: (lane != null ? Math.max(10, st.fontSize - 2) : st.fontSize) * z,
       fontWeight: st.bold ? 'bold' : undefined,
       fontStyle: st.italic ? 'italic' : undefined,
-      textAlign: st.align,
+      textAlign: lane != null ? 'center' : st.align,
       color: st.textColor,
       lineHeight: 1.25,
     };
