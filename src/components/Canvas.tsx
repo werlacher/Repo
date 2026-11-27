@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type PointerEvent as RPointerEvent } from 'react';
 import {
-  addElements, addShapeAt, currentPage, expandToGroups, isWholeGroup, getState, makeConnector, makeShape, pushHistory, setDocTransient,
+  addElements, addShapeAt, currentPage, expandToGroups, isWholeGroup, shiftPoints, editElements, getState, makeConnector, makeShape, pushHistory, setDocTransient,
   setState, shapeLookup, useApp, withElements, zoomAt, type View,
 } from '../store';
 import {
   anchorPoint, dist, localToWorld, normRect, rectContains, rotateVec, shapeBounds, shapeCenter, SIDE_VEC, SIDES,
   snapTo, sub, unionRects,
 } from '../model/geometry';
-import { computeRoute } from '../model/connectors';
+import { computeRoute, routePath } from '../model/connectors';
 import { SHAPES } from '../model/shapes';
 import type { Connector, DiagramDoc, DiagramElement, Endpoint, Point, Rect, Shape, ShapeType, Side } from '../model/types';
 import { ShapeView } from './ShapeView';
@@ -21,11 +21,13 @@ type Drag =
   | { kind: 'pan'; sx: number; sy: number; view: View }
   | {
       kind: 'move'; start: Point; snapshot: DiagramDoc; ids: Set<string>;
-      orig: Map<string, Point>; origConn: Map<string, { from: Endpoint; to: Endpoint }>;
+      orig: Map<string, Point>; origConn: Map<string, { from: Endpoint; to: Endpoint; waypoints?: Point[] }>;
       bbox: Rect | null; moved: boolean; clickedId: string; collapseTo: string[] | null;
     }
   | { kind: 'resize'; id: string; hx: number; hy: number; orig: Shape; snapshot: DiagramDoc }
   | { kind: 'scale'; hx: number; hy: number; bbox: Rect; ids: Set<string>; snapshot: DiagramDoc }
+  | { kind: 'bend'; id: string; index: number; insert: boolean; snapshot: DiagramDoc; moved: boolean }
+  | { kind: 'segment'; id: string; index: number; base: Point[]; horizontal: boolean; snapshot: DiagramDoc; moved: boolean }
   | { kind: 'rotate'; id: string; orig: Shape; snapshot: DiagramDoc }
   | { kind: 'endpoint'; id: string; end: 'from' | 'to'; snapshot: DiagramDoc }
   | { kind: 'connect'; from: Endpoint; start: Point; current: Point }
@@ -178,6 +180,21 @@ export function Canvas() {
       beginDrag({ kind: 'resize', id, hx: Number(target!.dataset.hx), hy: Number(target!.dataset.hy), orig, snapshot: st.doc }, e);
       return;
     }
+    if (role === 'bend' || role === 'bend-new') {
+      beginDrag({ kind: 'bend', id, index: Number(target!.dataset.index), insert: role === 'bend-new', snapshot: st.doc, moved: false }, e);
+      return;
+    }
+    if (role === 'segment') {
+      const conn = pageNow.elements.find((x) => x.id === id) as Connector;
+      const r = computeRoute(conn, lookup);
+      const index = Number(target!.dataset.index);
+      const a = r.points[index], b = r.points[index + 1];
+      beginDrag({
+        kind: 'segment', id, index, base: r.points.slice(1, -1), horizontal: Math.abs(a.y - b.y) < 0.01,
+        snapshot: st.doc, moved: false,
+      }, e);
+      return;
+    }
     if (role === 'ghandle') {
       const sel = new Set(st.selection);
       const rects = pageNow.elements.filter((el) => sel.has(el.id)).map((el) => elementBounds(el, lookup));
@@ -238,7 +255,7 @@ export function Canvas() {
       setState({ selection: sel });
       const ids = new Set(sel);
       const orig = new Map<string, Point>();
-      const origConn = new Map<string, { from: Endpoint; to: Endpoint }>();
+      const origConn = new Map<string, { from: Endpoint; to: Endpoint; waypoints?: Point[] }>();
       const rects: Rect[] = [];
       for (const el of pageNow.elements) {
         if (!ids.has(el.id) || el.locked) continue;
@@ -246,7 +263,7 @@ export function Canvas() {
           orig.set(el.id, { x: el.x, y: el.y });
           rects.push(shapeBounds(el));
         } else {
-          origConn.set(el.id, { from: el.from, to: el.to });
+          origConn.set(el.id, { from: el.from, to: el.to, waypoints: el.waypoints });
         }
       }
       beginDrag({
@@ -301,7 +318,7 @@ export function Canvas() {
             const oc = d.origConn.get(el.id);
             if (!oc) return el;
             const mv = (ep: Endpoint): Endpoint => (ep.shapeId ? ep : { ...ep, x: ep.x + dx, y: ep.y + dy });
-            return { ...el, from: mv(oc.from), to: mv(oc.to) };
+            return { ...el, from: mv(oc.from), to: mv(oc.to), waypoints: shiftPoints(oc.waypoints, dx, dy) };
           }),
         );
         setDocTransient(doc);
@@ -310,6 +327,32 @@ export function Canvas() {
       case 'resize': {
         const next = resizeShape(d.orig, d.hx, d.hy, p, e.shiftKey, st.settings.snapToGrid && !d.orig.rotation ? st.settings.gridSize : 0);
         setDocTransient(withElements(d.snapshot, st.pageId, (els) => els.map((el) => (el.id === d.id ? next : el))));
+        break;
+      }
+      case 'bend': {
+        const q = e.altKey ? p : snapPoint(p);
+        d.moved = true;
+        setDocTransient(withElements(d.snapshot, st.pageId, (els) => els.map((el) => {
+          if (el.id !== d.id || el.kind !== 'connector') return el;
+          const wps = [...(el.waypoints ?? [])];
+          if (d.insert) wps.splice(d.index, 0, q);
+          else wps[d.index] = q;
+          return { ...el, waypoints: wps };
+        })));
+        break;
+      }
+      case 'segment': {
+        const q = e.altKey ? p : snapPoint(p);
+        d.moved = true;
+        // route points [s, ...base, e]: segment i joins base[i-1] and base[i]
+        const wps = d.base.map((b) => ({ ...b }));
+        const i0 = d.index - 1, i1 = d.index;
+        for (const k of [i0, i1]) {
+          if (k < 0 || k >= wps.length) continue;
+          if (d.horizontal) wps[k].y = q.y;
+          else wps[k].x = q.x;
+        }
+        setDocTransient(withElements(d.snapshot, st.pageId, (els) => els.map((el) => (el.id === d.id && el.kind === 'connector' ? { ...el, waypoints: wps } : el))));
         break;
       }
       case 'scale': {
@@ -384,6 +427,10 @@ export function Canvas() {
         if (d.moved) pushHistory(d.snapshot);
         else if (d.collapseTo) setState({ selection: d.collapseTo });
         break;
+      case 'bend':
+      case 'segment':
+        if (d.moved) pushHistory(d.snapshot);
+        break;
       case 'resize':
       case 'scale':
       case 'rotate':
@@ -417,6 +464,18 @@ export function Canvas() {
 
   function onDoubleClick(e: React.MouseEvent) {
     const st = getState();
+    const bend = (e.target as Element).closest('[data-role="bend"]') as SVGElement | null;
+    if (bend?.dataset.id) {
+      const id = bend.dataset.id, index = Number(bend.dataset.index);
+      editElements((els) => els.map((x) => {
+        if (x.id !== id || x.kind !== 'connector' || !x.waypoints) return x;
+        const wps = x.waypoints.filter((_, i) => i !== index);
+        const next: Connector = { ...x, waypoints: wps };
+        if (!wps.length) delete next.waypoints;
+        return next;
+      }));
+      return;
+    }
     for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
       const g = el.closest('[data-role="shape"],[data-role="connector"]') as SVGElement | null;
       if (g?.dataset.id) {
@@ -526,7 +585,8 @@ export function Canvas() {
               const r = computeRoute(c, shapes);
               return (
                 <g key={c.id}>
-                  <path d={r.curved ? `M${r.points[0].x} ${r.points[0].y} C${r.points.slice(1).map((q) => `${q.x} ${q.y}`).join(' ')}` : `M${r.points.map((q) => `${q.x} ${q.y}`).join(' L')}`} fill="none" stroke={ACCENT} strokeWidth={1 / z} strokeDasharray={`${4 / z} ${3 / z}`} pointerEvents="none" />
+                  <path d={routePath(r)} fill="none" stroke={ACCENT} strokeWidth={1 / z} strokeDasharray={`${4 / z} ${3 / z}`} pointerEvents="none" />
+                  {!c.locked && selectedConns.length === 1 && selection.length === 1 && dragKind !== 'move' && <BendHandles conn={c} route={r} zoom={z} />}
                   {!c.locked && (['from', 'to'] as const).map((end) => {
                     const q = end === 'from' ? r.start : r.end;
                     const glued = !!c[end].shapeId;
@@ -768,7 +828,7 @@ function scaleSelection(
         return { ...el, x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w: Math.round(w), h: Math.round(h) };
       }
       const mv = (ep: Endpoint): Endpoint => (ep.shapeId ? ep : { ...ep, x: tx(ep.x), y: ty(ep.y) });
-      return { ...el, from: mv(el.from), to: mv(el.to) };
+      return { ...el, from: mv(el.from), to: mv(el.to), waypoints: el.waypoints?.map((q) => ({ x: tx(q.x), y: ty(q.y) })) };
     });
 }
 
@@ -808,6 +868,54 @@ function LockBadge({ bounds, zoom }: { bounds: Rect; zoom: number }) {
       <rect width={16} height={16} rx={4} fill="#0f172a" />
       <rect x={4} y={7.5} width={8} height={6} rx={1} fill="#fff" />
       <path d="M5.5 7.5V6a2.5 2.5 0 015 0v1.5" fill="none" stroke="#fff" strokeWidth={1.4} />
+    </g>
+  );
+}
+
+/** Handles to reshape a selected line: bend points and segment grips. */
+function BendHandles({ conn, route, zoom }: { conn: Connector; route: ReturnType<typeof computeRoute>; zoom: number }) {
+  const r = 4.5 / zoom;
+  if (conn.style.routing === 'orthogonal') {
+    const pts = route.points;
+    const grips = [];
+    // only middle segments can slide; the end segments follow their shapes
+    for (let i = 1; i < pts.length - 2; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const horizontal = Math.abs(a.y - b.y) < 0.01;
+      const len = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+      if (len * zoom < 18) continue;
+      const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const w = (horizontal ? 18 : 6) / zoom, h = (horizontal ? 6 : 18) / zoom;
+      grips.push(
+        <rect key={i} data-role="segment" data-id={conn.id} data-index={i} x={m.x - w / 2} y={m.y - h / 2} width={w} height={h} rx={3 / zoom}
+          fill="#fff" stroke={ACCENT} strokeWidth={1.5 / zoom} style={{ cursor: horizontal ? 'ns-resize' : 'ew-resize' }}>
+          <title>Drag to move this segment</title>
+        </rect>,
+      );
+    }
+    return <g>{grips}</g>;
+  }
+  const wps = conn.waypoints ?? [];
+  const chain = [route.start, ...wps, route.end];
+  return (
+    <g>
+      {chain.slice(0, -1).map((a, i) => {
+        const b = chain[i + 1];
+        if (Math.hypot(a.x - b.x, a.y - b.y) * zoom < 24) return null;
+        const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        return (
+          <circle key={`n${i}`} data-role="bend-new" data-id={conn.id} data-index={i} cx={m.x} cy={m.y} r={r * 0.8}
+            fill="#fff" stroke={ACCENT} strokeWidth={1 / zoom} strokeDasharray={`${2 / zoom} ${1.5 / zoom}`} style={{ cursor: 'copy' }}>
+            <title>Drag to add a bend point</title>
+          </circle>
+        );
+      })}
+      {wps.map((q, i) => (
+        <rect key={`b${i}`} data-role="bend" data-id={conn.id} data-index={i} x={q.x - r} y={q.y - r} width={2 * r} height={2 * r}
+          transform={`rotate(45 ${q.x} ${q.y})`} fill={ACCENT} stroke="#fff" strokeWidth={1 / zoom} style={{ cursor: 'move' }}>
+          <title>Drag to move, double-click to remove</title>
+        </rect>
+      ))}
     </g>
   );
 }

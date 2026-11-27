@@ -131,6 +131,12 @@ export interface Connector extends ElementBase {
   id: string;
   from: Endpoint;
   to: Endpoint;
+  /**
+   * Manual bend points (world coords). For straight/curved lines the line
+   * passes through them; for elbow lines they are the frozen corner points.
+   * Absent = automatic routing.
+   */
+  waypoints?: Point[];
   label: string;
   style: ConnectorStyle;
 }

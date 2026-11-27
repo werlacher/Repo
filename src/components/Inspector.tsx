@@ -1,7 +1,7 @@
 import {
   alignSelection, currentPage, deleteSelection, distributeSelection, duplicateSelection, groupSelection, reorder, setState,
   toggleLockSelection, ungroupSelection,
-  updateConnectorStyle, updateShapeGeometry, updateShapeStyle, useApp, commitDoc, getState,
+  updateConnectorStyle, updateShapeGeometry, updateShapeStyle, useApp, commitDoc, getState, resetRoute,
 } from '../store';
 import { FONTS } from '../model/defaults';
 import { SHAPES } from '../model/shapes';
@@ -127,7 +127,13 @@ function ConnectorSection({ conns }: { conns: Connector[] }) {
         <NumberField label="Label size" value={st.fontSize} min={6} max={120} onCommit={(v) => set({ fontSize: v })} />
         <ColorField label="Label color" value={st.textColor} onChange={(v, live) => set({ textColor: v }, live)} />
       </div>
-      <p className="muted small">Double-click a line to add a label. Drag its end dots to reconnect.</p>
+      {conns.some((c) => c.waypoints?.length) && (
+        <button type="button" className="wide-btn" onClick={() => resetRoute(ids)}>Reset to automatic route</button>
+      )}
+      <p className="muted small">
+        Double-click a line to add a label. Drag its end dots to reconnect.
+        {st.routing === 'orthogonal' ? ' Drag a middle segment grip to reroute it.' : ' Drag the small circles to add bend points; double-click a bend point to remove it.'}
+      </p>
     </Section>
   );
 }

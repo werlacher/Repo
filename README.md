@@ -45,7 +45,12 @@ a `.flowboard.json` file instead.
 - **Connectors that stick**: hover a shape and drag one of its dots to another
   shape. Lines follow shapes as they move. Choose elbow, straight or curved
   routing, arrowheads at either end (arrow, open, diamond, circle), dashes,
-  and a label (double-click the line).
+  and a label (double-click the line). Elbow lines automatically route
+  around shapes in their way.
+- **Bend points**: select an elbow line and drag a middle segment grip to
+  reroute it; on straight and curved lines drag the small circles to add bend
+  points (double-click one to remove it). "Reset to automatic route" in the
+  right panel undoes manual routing.
 - **Editing**: select, multi-select (Shift+click or drag a box), move, resize
   (Shift keeps proportions), rotate (Shift snaps to 15°), nudge with arrows,
   copy/cut/paste/duplicate, z-order, align and distribute.

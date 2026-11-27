@@ -9,6 +9,7 @@ const ROWS: [string, string][] = [
   ['Shift 1', 'Fit diagram to screen'],
   ['Hover a shape, drag a dot', 'Draw a connected line'],
   ['Double-click', 'Edit text or line label (double-click empty space adds text)'],
+  ['Select a line, drag its grips', 'Reroute it (elbow) or add bend points (straight/curved); double-click a bend point to remove it'],
   ['Enter / F2', 'Edit text of the selected shape'],
   ['Esc', 'Finish editing, clear selection'],
   ['Shift + click, drag on empty space', 'Multi-select'],

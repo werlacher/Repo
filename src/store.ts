@@ -298,7 +298,30 @@ export function updateShapeStyle(ids: string[], patch: Partial<ShapeStyle>, key?
 }
 
 export function updateConnectorStyle(ids: string[], patch: Partial<ConnectorStyle>, key?: string) {
-  mapElements(ids, (e) => (e.kind === 'connector' ? { ...e, style: { ...e.style, ...patch } } : e), key);
+  mapElements(
+    ids,
+    (e) => {
+      if (e.kind !== 'connector') return e;
+      const next = { ...e, style: { ...e.style, ...patch } };
+      // bend points don't carry over between routing styles
+      if (patch.routing && patch.routing !== e.style.routing) delete next.waypoints;
+      return next;
+    },
+    key,
+  );
+}
+
+export function shiftPoints(pts: Point[] | undefined, dx: number, dy: number): Point[] | undefined {
+  return pts?.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+}
+
+/** Drop manual bend points so the line routes itself again. */
+export function resetRoute(ids: string[]) {
+  mapElements(ids, (e) => {
+    if (e.kind !== 'connector' || !e.waypoints || e.locked) return e;
+    const { waypoints: _drop, ...rest } = e;
+    return rest as Connector;
+  });
 }
 
 export function updateShapeGeometry(id: string, patch: Partial<Pick<Shape, 'x' | 'y' | 'w' | 'h' | 'rotation'>>) {
@@ -328,7 +351,7 @@ export function nudgeSelection(dx: number, dy: number) {
         if (!ids.has(e.id) || e.locked) return e;
         if (e.kind === 'shape') return { ...e, x: e.x + dx, y: e.y + dy };
         const mv = (ep: Endpoint): Endpoint => (ep.shapeId ? ep : { ...ep, x: ep.x + dx, y: ep.y + dy });
-        return { ...e, from: mv(e.from), to: mv(e.to) };
+        return { ...e, from: mv(e.from), to: mv(e.to), waypoints: shiftPoints(e.waypoints, dx, dy) };
       }),
     { coalesceKey: 'nudge' },
   );
@@ -531,7 +554,7 @@ export function cloneElements(els: DiagramElement[], offset: number): DiagramEle
   return els.map((e) =>
     e.kind === 'shape'
       ? { ...e, id: map.get(e.id)!, groupId: gid(e.groupId), x: e.x + offset, y: e.y + offset }
-      : { ...e, id: map.get(e.id)!, groupId: gid(e.groupId), from: ep(e.from), to: ep(e.to) },
+      : { ...e, id: map.get(e.id)!, groupId: gid(e.groupId), from: ep(e.from), to: ep(e.to), waypoints: shiftPoints(e.waypoints, offset, offset) },
   );
 }
 

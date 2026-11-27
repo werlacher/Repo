@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { anchorPoint, boundaryToward, rayPolygon, rotatePoint, shapeBounds } from '../src/model/geometry';
-import { computeRoute, orthogonalRoute, simplify } from '../src/model/connectors';
+import { computeRoute, manualOrthogonal, orthogonalRoute, simplify } from '../src/model/connectors';
 import { SHAPES } from '../src/model/shapes';
 import { resizeShape } from '../src/components/Canvas';
 import { wrapText } from '../src/lib/textLayout';
@@ -79,6 +79,54 @@ describe('connector routing', () => {
     const r = computeRoute(c, new Map([['a', a], ['b', b]]));
     expect(r.start).toEqual({ x: 100, y: 25 });
     expect(r.end).toEqual({ x: 300, y: 25 });
+  });
+});
+
+describe('bend points and obstacle avoidance', () => {
+  const axisAligned = (pts: { x: number; y: number }[]) =>
+    pts.every((p, i) => i === 0 || Math.abs(p.x - pts[i - 1].x) < 1e-6 || Math.abs(p.y - pts[i - 1].y) < 1e-6);
+
+  it('routes an elbow line around a shape in the way', () => {
+    const a = shape({ id: 'a', x: 0, y: 0 });
+    const b = shape({ id: 'b', x: 400, y: 0 });
+    const block = shape({ id: 'x', x: 200, y: -40, w: 80, h: 130 });
+    const shapes = new Map([['a', a], ['b', b], ['x', block]]);
+    const c = store.makeConnector({ shapeId: 'a', anchor: 'right', x: 0, y: 0 }, { shapeId: 'b', anchor: 'left', x: 0, y: 0 });
+    const r = computeRoute(c, shapes);
+    expect(axisAligned(r.points)).toBe(true);
+    // no segment may cross the blocking shape's box
+    for (let i = 1; i < r.points.length; i++) {
+      const p = r.points[i - 1], q = r.points[i];
+      const crosses = Math.max(p.x, q.x) > 200 && Math.min(p.x, q.x) < 280 && Math.max(p.y, q.y) > -40 && Math.min(p.y, q.y) < 90;
+      expect(crosses).toBe(false);
+    }
+    // without the obstacle it is a straight line
+    const r2 = computeRoute(c, new Map([['a', a], ['b', b]]));
+    expect(r2.points).toHaveLength(2);
+  });
+
+  it('keeps a manual elbow route axis-aligned when the ends move', () => {
+    const wps = [{ x: 150, y: 25 }, { x: 150, y: 200 }, { x: 300, y: 200 }];
+    const pts = manualOrthogonal({ x: 100, y: 60 }, { x: 320, y: 260 }, wps);
+    expect(axisAligned(pts)).toBe(true);
+    expect(pts[0]).toEqual({ x: 100, y: 60 });
+    expect(pts[pts.length - 1]).toEqual({ x: 320, y: 260 });
+  });
+
+  it('passes straight lines through their bend points', () => {
+    const c = { ...store.makeConnector({ x: 0, y: 0 }, { x: 100, y: 0 }, { routing: 'straight' }), waypoints: [{ x: 50, y: 80 }] };
+    expect(computeRoute(c, new Map()).points).toEqual([{ x: 0, y: 0 }, { x: 50, y: 80 }, { x: 100, y: 0 }]);
+  });
+
+  it('drops bend points when the routing style changes, and on reset', () => {
+    store.resetStore();
+    const c = { ...store.makeConnector({ x: 0, y: 0 }, { x: 100, y: 0 }, { routing: 'straight' }), waypoints: [{ x: 50, y: 80 }] };
+    store.addElements([c]);
+    store.resetRoute([c.id]);
+    expect((store.currentPage().elements[0] as typeof c).waypoints).toBeUndefined();
+    store.undo();
+    store.updateConnectorStyle([c.id], { routing: 'curved' });
+    expect((store.currentPage().elements[0] as typeof c).waypoints).toBeUndefined();
   });
 });
 
