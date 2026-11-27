@@ -1,0 +1,183 @@
+import { describe, expect, it, beforeEach } from 'vitest';
+import { anchorPoint, boundaryToward, rayPolygon, rotatePoint, shapeBounds } from '../src/model/geometry';
+import { computeRoute, orthogonalRoute, simplify } from '../src/model/connectors';
+import { SHAPES } from '../src/model/shapes';
+import { resizeShape } from '../src/components/Canvas';
+import { wrapText } from '../src/lib/textLayout';
+import { parseDoc, serialize } from '../src/lib/io';
+import * as store from '../src/store';
+import type { Shape, ShapeType } from '../src/model/types';
+
+const shape = (over: Partial<Shape> = {}): Shape => ({ ...store.makeShape('rectangle', { x: 50, y: 25 }, { w: 100, h: 50 }), ...over });
+
+describe('geometry', () => {
+  it('rotates points around a center', () => {
+    const p = rotatePoint({ x: 1, y: 0 }, { x: 0, y: 0 }, 90);
+    expect(p.x).toBeCloseTo(0);
+    expect(p.y).toBeCloseTo(1);
+  });
+
+  it('computes bounds of a rotated shape', () => {
+    const b = shapeBounds(shape({ rotation: 90 }));
+    expect(b.w).toBeCloseTo(50);
+    expect(b.h).toBeCloseTo(100);
+  });
+
+  it('places side anchors on the outline of every shape type', () => {
+    for (const type of Object.keys(SHAPES) as ShapeType[]) {
+      const s = { ...store.makeShape(type, { x: 0, y: 0 }, { w: 100, h: 80 }) };
+      const top = anchorPoint(s, 'top');
+      const right = anchorPoint(s, 'right');
+      expect(Number.isFinite(top.y), type).toBe(true);
+      expect(right.x).toBeGreaterThan(0);
+      expect(right.x).toBeLessThanOrEqual(50.01);
+    }
+  });
+
+  it('finds the ray exit point of a polygon', () => {
+    const sq = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+    expect(rayPolygon({ x: 5, y: 5 }, { x: 1, y: 0 }, sq)).toEqual({ x: 10, y: 5 });
+  });
+
+  it('floats a glued end to the boundary toward a target', () => {
+    const p = boundaryToward(shape(), { x: 500, y: 25 });
+    expect(p.x).toBeCloseTo(100);
+    expect(p.y).toBeCloseTo(25);
+  });
+});
+
+describe('connector routing', () => {
+  it('routes an elbow between facing sides', () => {
+    const pts = orthogonalRoute({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 100, y: 50 }, { x: -1, y: 0 });
+    expect(pts).toEqual([{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 50 }, { x: 100, y: 50 }]);
+  });
+
+  it('routes an L between a horizontal and a vertical side', () => {
+    const pts = orthogonalRoute({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 100, y: 100 }, { x: 0, y: -1 });
+    expect(pts).toEqual([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }]);
+  });
+
+  it('keeps every elbow segment axis-aligned', () => {
+    const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+    for (const d1 of dirs) for (const d2 of dirs) for (const e of [{ x: 120, y: 60 }, { x: -80, y: 30 }, { x: 10, y: -90 }]) {
+      const pts = orthogonalRoute({ x: 0, y: 0 }, d1, e, d2);
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i];
+        expect(Math.abs(a.x - b.x) < 1e-9 || Math.abs(a.y - b.y) < 1e-9).toBe(true);
+      }
+    }
+  });
+
+  it('removes duplicate and collinear points', () => {
+    expect(simplify([{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }])).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }]);
+  });
+
+  it('follows glued shapes', () => {
+    const a = shape({ id: 'a', x: 0, y: 0 });
+    const b = shape({ id: 'b', x: 300, y: 0 });
+    const c = store.makeConnector({ shapeId: 'a', anchor: 'auto', x: 0, y: 0 }, { shapeId: 'b', anchor: 'auto', x: 0, y: 0 });
+    const r = computeRoute(c, new Map([['a', a], ['b', b]]));
+    expect(r.start).toEqual({ x: 100, y: 25 });
+    expect(r.end).toEqual({ x: 300, y: 25 });
+  });
+});
+
+describe('resize', () => {
+  it('keeps the opposite corner fixed', () => {
+    const s = shape({ x: 0, y: 0 });
+    const next = resizeShape(s, 1, 1, { x: 200, y: 120 }, false, 0);
+    expect(next).toMatchObject({ x: 0, y: 0, w: 200, h: 120 });
+    const left = resizeShape(s, 0, 0.5, { x: -50, y: 999 }, false, 0);
+    expect(left).toMatchObject({ x: -50, y: 0, w: 150, h: 50 });
+  });
+});
+
+describe('text wrapping', () => {
+  it('wraps long text and keeps explicit newlines', () => {
+    const lines = wrapText('one two three four five\nsix', 60, '14px Arial');
+    expect(lines.length).toBeGreaterThan(2);
+    expect(lines[lines.length - 1]).toBe('six');
+  });
+});
+
+describe('store', () => {
+  beforeEach(() => store.resetStore());
+
+  it('adds, undoes and redoes', () => {
+    store.addShapeAt('rectangle', { x: 0, y: 0 });
+    expect(store.currentPage().elements).toHaveLength(1);
+    store.undo();
+    expect(store.currentPage().elements).toHaveLength(0);
+    store.redo();
+    expect(store.currentPage().elements).toHaveLength(1);
+  });
+
+  it('copies and pastes connectors re-glued to the pasted shapes', () => {
+    const a = store.makeShape('rectangle', { x: 0, y: 0 });
+    const b = store.makeShape('rectangle', { x: 300, y: 0 });
+    const c = store.makeConnector({ shapeId: a.id, anchor: 'auto', x: 0, y: 0 }, { shapeId: b.id, anchor: 'auto', x: 0, y: 0 });
+    store.addElements([a, b, c]);
+    store.selectAll();
+    store.copySelection();
+    store.paste();
+    const els = store.currentPage().elements;
+    expect(els).toHaveLength(6);
+    const pasted = els[5];
+    expect(pasted.kind).toBe('connector');
+    if (pasted.kind === 'connector') {
+      expect(pasted.from.shapeId).toBe(els[3].id);
+      expect(pasted.to.shapeId).toBe(els[4].id);
+    }
+  });
+
+  it('keeps lines as free lines when their shape is deleted', () => {
+    const a = store.makeShape('rectangle', { x: 0, y: 0 });
+    const b = store.makeShape('rectangle', { x: 300, y: 0 });
+    const c = store.makeConnector({ shapeId: a.id, anchor: 'right', x: 0, y: 0 }, { shapeId: b.id, anchor: 'left', x: 0, y: 0 });
+    store.addElements([a, b, c]);
+    store.setState({ selection: [b.id] });
+    store.deleteSelection();
+    const line = store.currentPage().elements.find((e) => e.kind === 'connector');
+    expect(line && line.kind === 'connector' && line.to.shapeId).toBeFalsy();
+  });
+
+  it('aligns and distributes', () => {
+    const s1 = store.makeShape('rectangle', { x: 0, y: 0 }, { w: 20, h: 20 });
+    const s2 = store.makeShape('rectangle', { x: 100, y: 37 }, { w: 20, h: 20 });
+    const s3 = store.makeShape('rectangle', { x: 500, y: 10 }, { w: 20, h: 20 });
+    store.addElements([s1, s2, s3]);
+    store.alignSelection('top');
+    const ys = store.currentPage().elements.map((e) => (e.kind === 'shape' ? e.y : 0));
+    expect(new Set(ys).size).toBe(1);
+    store.distributeSelection('h');
+    const xs = store.currentPage().elements.map((e) => (e.kind === 'shape' ? e.x : 0));
+    expect(xs[1] - xs[0]).toBe(xs[2] - xs[1]);
+  });
+
+  it('merges rapid style changes into one undo step', () => {
+    const s = store.addShapeAt('rectangle', { x: 0, y: 0 });
+    const before = store.getState().past.length;
+    store.updateShapeStyle([s.id], { fill: '#111111' }, 'fill');
+    store.updateShapeStyle([s.id], { fill: '#222222' }, 'fill');
+    expect(store.getState().past.length).toBe(before + 1);
+  });
+});
+
+describe('file format', () => {
+  it('round-trips a document and fills in missing style fields', () => {
+    store.resetStore();
+    store.addShapeAt('diamond', { x: 0, y: 0 });
+    const text = serialize(store.getState().doc);
+    const back = parseDoc(text);
+    expect(back.pages[0].elements[0]).toMatchObject({ type: 'diamond' });
+    const raw = JSON.parse(text);
+    delete raw.pages[0].elements[0].style.fontSize;
+    const fixed = parseDoc(JSON.stringify(raw));
+    const el = fixed.pages[0].elements[0];
+    expect(el.kind === 'shape' && el.style.fontSize).toBe(14);
+  });
+
+  it('rejects files that are not diagrams', () => {
+    expect(() => parseDoc('{"hello": 1}')).toThrow();
+  });
+});
