@@ -244,8 +244,13 @@ export function makeConnector(from: Endpoint, to: Endpoint, style?: Partial<Conn
   return { kind: 'connector', id: newId('c'), from, to, label: '', style: { ...defaultConnectorStyle(), ...style } };
 }
 
+/** Containers go behind everything else so they can hold other shapes. */
+const isBackdrop = (e: DiagramElement) => e.kind === 'shape' && e.type === 'container';
+
 export function addElements(els: DiagramElement[], select = true) {
-  editElements((cur) => [...cur, ...els], { selection: select ? els.map((e) => e.id) : undefined });
+  const back = els.filter(isBackdrop);
+  const front = els.filter((e) => !isBackdrop(e));
+  editElements((cur) => [...back, ...cur, ...front], { selection: select ? els.map((e) => e.id) : undefined });
 }
 
 export function addShapeAt(type: ShapeType, center: Point, extra?: { icon?: IconData; image?: ImageData; size?: { w: number; h: number } }) {

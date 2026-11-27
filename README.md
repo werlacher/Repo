@@ -55,7 +55,9 @@ a `.flowboard.json` file instead.
 - **Shapes**: rectangle, rounded, ellipse, diamond, triangle, hexagon, star,
   text, sticky note and the standard flowchart set (process, decision,
   terminator, data, document, database, predefined process, manual input,
-  manual operation, preparation, delay). Click a tile to add it, drag it onto
+  manual operation, preparation, delay), callouts (rectangular, rounded,
+  oval, thought bubble), cloud, a titled container (added behind other
+  shapes), block arrows, chevron, pentagon, octagon and cross. Click a tile to add it, drag it onto
   the canvas, or pick a tool (R, O, D, N) and click or drag on the canvas.
 - **Icons**: a searchable library of about 40,000 free icons (Lucide, Tabler,
   Material Symbols, Phosphor, Simple Icons brand logos, and SVG Logos with

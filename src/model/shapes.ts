@@ -229,6 +229,144 @@ export const SHAPES: Record<ShapeType, ShapeDef> = {
     outline: rectPts,
     style: { fill: 'none', stroke: 'none', fontSize: 16 },
   },
+  callout: {
+    label: 'Callout',
+    defaultSize: { w: 160, h: 100 },
+    outline: (w, h) => calloutPts(w, h),
+    textBox: (w, h) => ({ x: 0, y: 0, w, h: h * BODY }),
+  },
+  calloutRound: {
+    label: 'Rounded callout',
+    defaultSize: { w: 160, h: 100 },
+    outline: (w, h) => calloutPts(w, h),
+    path: (w, h) => {
+      const bh = h * BODY;
+      const k = Math.min(12, w / 4, bh / 4);
+      return `M${k} 0 H${w - k} A${k} ${k} 0 0 1 ${w} ${k} V${bh - k} A${k} ${k} 0 0 1 ${w - k} ${bh} H${w * 0.38} L${w * 0.16} ${h} L${w * 0.22} ${bh} H${k} A${k} ${k} 0 0 1 0 ${bh - k} V${k} A${k} ${k} 0 0 1 ${k} 0 Z`;
+    },
+    textBox: (w, h) => ({ x: 0, y: 0, w, h: h * BODY }),
+  },
+  calloutOval: {
+    label: 'Oval callout',
+    defaultSize: { w: 160, h: 110 },
+    outline: (w, h) => {
+      const bh = h * BODY;
+      const a1 = (PI * 105) / 180, a2 = (PI * 125) / 180;
+      return [...arcPts(w / 2, bh / 2, w / 2, bh / 2, a2, a1 + 2 * PI, 72), { x: w * 0.12, y: h }];
+    },
+    textBox: (w, h) => ({ x: w * 0.14, y: h * BODY * 0.14, w: w * 0.72, h: h * BODY * 0.72 }),
+  },
+  thought: {
+    label: 'Thought bubble',
+    defaultSize: { w: 170, h: 120 },
+    outline: (w, h) => arcPts(w / 2, (h * BODY) / 2, w / 2, (h * BODY) / 2, 0, 2 * PI, 48).slice(0, -1),
+    path: (w, h) => {
+      const bh = h * BODY;
+      const r1 = Math.min(w, h) * 0.07, r2 = Math.min(w, h) * 0.045;
+      const c1 = { x: w * 0.24, y: bh + r1 * 0.9 }, c2 = { x: w * 0.13, y: h - r2 };
+      const circle = (c: Point, r: number) => `M${c.x - r} ${c.y} a${r} ${r} 0 1 0 ${2 * r} 0 a${r} ${r} 0 1 0 ${-2 * r} 0 Z`;
+      return `${cloudPath(w, bh)} ${circle(c1, r1)} ${circle(c2, r2)}`;
+    },
+    textBox: (w, h) => ({ x: w * 0.15, y: h * BODY * 0.15, w: w * 0.7, h: h * BODY * 0.7 }),
+  },
+  cloud: {
+    label: 'Cloud',
+    defaultSize: { w: 160, h: 100 },
+    outline: (w, h) => arcPts(w / 2, h / 2, w / 2, h / 2, 0, 2 * PI, 48).slice(0, -1),
+    path: (w, h) => cloudPath(w, h),
+    textBox: (w, h) => ({ x: w * 0.15, y: h * 0.18, w: w * 0.7, h: h * 0.64 }),
+  },
+  arrowRight: {
+    label: 'Arrow right',
+    defaultSize: { w: 150, h: 70 },
+    outline: (w, h) => blockArrow(w, h),
+    textBox: (w, h) => ({ x: 0, y: h * 0.25, w: w - arrowHead(w, h), h: h * 0.5 }),
+  },
+  arrowLeft: {
+    label: 'Arrow left',
+    defaultSize: { w: 150, h: 70 },
+    outline: (w, h) => blockArrow(w, h).map((p) => ({ x: w - p.x, y: p.y })),
+    textBox: (w, h) => ({ x: arrowHead(w, h), y: h * 0.25, w: w - arrowHead(w, h), h: h * 0.5 }),
+  },
+  arrowUp: {
+    label: 'Arrow up',
+    defaultSize: { w: 70, h: 150 },
+    outline: (w, h) => blockArrow(h, w).map((p) => ({ x: p.y, y: h - p.x })),
+    textBox: (w, h) => ({ x: 0, y: arrowHead(h, w), w, h: h - arrowHead(h, w) }),
+  },
+  arrowDown: {
+    label: 'Arrow down',
+    defaultSize: { w: 70, h: 150 },
+    outline: (w, h) => blockArrow(h, w).map((p) => ({ x: p.y, y: p.x })),
+    textBox: (w, h) => ({ x: 0, y: 0, w, h: h - arrowHead(h, w) }),
+  },
+  arrowDouble: {
+    label: 'Double arrow',
+    defaultSize: { w: 170, h: 70 },
+    outline: (w, h) => {
+      const k = Math.min(w * 0.3, h * 0.8);
+      return [
+        { x: 0, y: h / 2 }, { x: k, y: 0 }, { x: k, y: h * 0.25 }, { x: w - k, y: h * 0.25 }, { x: w - k, y: 0 },
+        { x: w, y: h / 2 }, { x: w - k, y: h }, { x: w - k, y: h * 0.75 }, { x: k, y: h * 0.75 }, { x: k, y: h },
+      ];
+    },
+    textBox: (w, h) => {
+      const k = Math.min(w * 0.3, h * 0.8);
+      return { x: k * 0.6, y: h * 0.25, w: w - k * 1.2, h: h * 0.5 };
+    },
+  },
+  pentagon: {
+    label: 'Pentagon',
+    defaultSize: { w: 110, h: 105 },
+    outline: (w, h) => [{ x: w / 2, y: 0 }, { x: w, y: h * 0.38 }, { x: w * 0.81, y: h }, { x: w * 0.19, y: h }, { x: 0, y: h * 0.38 }],
+    textBox: (w, h) => ({ x: w * 0.15, y: h * 0.3, w: w * 0.7, h: h * 0.6 }),
+  },
+  octagon: {
+    label: 'Octagon',
+    defaultSize: { w: 110, h: 110 },
+    outline: (w, h) => {
+      const kw = w * 0.29, kh = h * 0.29;
+      return [
+        { x: kw, y: 0 }, { x: w - kw, y: 0 }, { x: w, y: kh }, { x: w, y: h - kh },
+        { x: w - kw, y: h }, { x: kw, y: h }, { x: 0, y: h - kh }, { x: 0, y: kh },
+      ];
+    },
+  },
+  cross: {
+    label: 'Cross',
+    defaultSize: { w: 100, h: 100 },
+    outline: (w, h) => {
+      const a = w * 0.32, b = h * 0.32;
+      return [
+        { x: a, y: 0 }, { x: w - a, y: 0 }, { x: w - a, y: b }, { x: w, y: b }, { x: w, y: h - b }, { x: w - a, y: h - b },
+        { x: w - a, y: h }, { x: a, y: h }, { x: a, y: h - b }, { x: 0, y: h - b }, { x: 0, y: b }, { x: a, y: b },
+      ];
+    },
+  },
+  chevron: {
+    label: 'Chevron',
+    defaultSize: { w: 150, h: 70 },
+    outline: (w, h) => {
+      const d = Math.min(w * 0.3, h * 0.5);
+      return [{ x: 0, y: 0 }, { x: w - d, y: 0 }, { x: w, y: h / 2 }, { x: w - d, y: h }, { x: 0, y: h }, { x: d, y: h / 2 }];
+    },
+    textBox: (w, h) => {
+      const d = Math.min(w * 0.3, h * 0.5);
+      return { x: d, y: 0, w: w - 2 * d, h };
+    },
+  },
+  container: {
+    label: 'Container',
+    defaultSize: { w: 320, h: 220 },
+    outline: rectPts,
+    path: (w, h) => {
+      const k = Math.min(8, w / 4, h / 4);
+      return `M${k} 0 H${w - k} A${k} ${k} 0 0 1 ${w} ${k} V${h - k} A${k} ${k} 0 0 1 ${w - k} ${h} H${k} A${k} ${k} 0 0 1 0 ${h - k} V${k} A${k} ${k} 0 0 1 ${k} 0 Z`;
+    },
+    extra: (w, h) => `M0 ${headerH(h)} H${w}`,
+    textBox: (w, h) => ({ x: 0, y: 0, w, h: headerH(h) }),
+    style: { fill: '#f8fafc', bold: true, align: 'left' },
+  },
   icon: {
     label: 'Icon',
     defaultSize: { w: 64, h: 64 },
@@ -248,6 +386,52 @@ export const SHAPES: Record<ShapeType, ShapeDef> = {
 
 /** Shapes whose stroke color is used as the icon color rather than an outline. */
 export const isMediaShape = (t: ShapeType) => t === 'icon' || t === 'image';
+
+/** Callout body height as a fraction of the box; the tail fills the rest. */
+const BODY = 0.78;
+
+function calloutPts(w: number, h: number): Point[] {
+  const bh = h * BODY;
+  return [
+    { x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: bh }, { x: w * 0.38, y: bh },
+    { x: w * 0.16, y: h }, { x: w * 0.22, y: bh }, { x: 0, y: bh },
+  ];
+}
+
+/** Bumpy cloud outline made of arcs around an ellipse. */
+function cloudPath(w: number, h: number): string {
+  const n = 9;
+  const rx = w * 0.4, ry = h * 0.36;
+  const pts: Point[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = -PI / 2 + (i * 2 * PI) / n;
+    pts.push({ x: w / 2 + rx * Math.cos(a), y: h / 2 + ry * Math.sin(a) });
+  }
+  let d = `M${r(pts[0].x)} ${r(pts[0].y)}`;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    const rad = Math.hypot(b.x - a.x, b.y - a.y) * 0.62;
+    d += ` A${r(rad)} ${r(rad)} 0 0 1 ${r(b.x)} ${r(b.y)}`;
+  }
+  return d + ' Z';
+}
+
+function arrowHead(w: number, h: number) {
+  return Math.min(w * 0.4, h * 0.8);
+}
+
+/** Right-pointing block arrow in a w x h box. */
+function blockArrow(w: number, h: number): Point[] {
+  const k = arrowHead(w, h);
+  return [
+    { x: 0, y: h * 0.25 }, { x: w - k, y: h * 0.25 }, { x: w - k, y: 0 }, { x: w, y: h / 2 },
+    { x: w - k, y: h }, { x: w - k, y: h * 0.75 }, { x: 0, y: h * 0.75 },
+  ];
+}
+
+function headerH(h: number) {
+  return Math.min(36, h * 0.3);
+}
 
 function cylRy(w: number, h: number) {
   return Math.min(h * 0.15, w * 0.25, 16);
@@ -280,6 +464,31 @@ export const LIBRARY: { name: string; items: LibraryItem[] }[] = [
       { type: 'star', label: 'Star' },
       { type: 'text', label: 'Text' },
       { type: 'note', label: 'Sticky note' },
+    ],
+  },
+  {
+    name: 'Callouts',
+    items: [
+      { type: 'callout', label: 'Callout' },
+      { type: 'calloutRound', label: 'Rounded callout' },
+      { type: 'calloutOval', label: 'Oval callout' },
+      { type: 'thought', label: 'Thought' },
+      { type: 'cloud', label: 'Cloud' },
+      { type: 'container', label: 'Container' },
+    ],
+  },
+  {
+    name: 'Arrows & symbols',
+    items: [
+      { type: 'arrowRight', label: 'Arrow right' },
+      { type: 'arrowLeft', label: 'Arrow left' },
+      { type: 'arrowUp', label: 'Arrow up' },
+      { type: 'arrowDown', label: 'Arrow down' },
+      { type: 'arrowDouble', label: 'Double arrow' },
+      { type: 'chevron', label: 'Chevron' },
+      { type: 'pentagon', label: 'Pentagon' },
+      { type: 'octagon', label: 'Octagon' },
+      { type: 'cross', label: 'Cross' },
     ],
   },
   {

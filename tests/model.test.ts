@@ -202,6 +202,12 @@ describe('store', () => {
     expect(xs[1] - xs[0]).toBe(xs[2] - xs[1]);
   });
 
+  it('puts new containers behind existing shapes', () => {
+    const a = store.addShapeAt('rectangle', { x: 0, y: 0 });
+    const c = store.addShapeAt('container', { x: 0, y: 0 });
+    expect(store.currentPage().elements.map((e) => e.id)).toEqual([c.id, a.id]);
+  });
+
   it('merges rapid style changes into one undo step', () => {
     const s = store.addShapeAt('rectangle', { x: 0, y: 0 });
     const before = store.getState().past.length;
