@@ -65,7 +65,7 @@ export const ConnectorView = memo(function ConnectorView({ conn, shapes, interac
         <rect x={r.mid.x - width / 2} y={r.mid.y - height / 2} width={width} height={height} rx={3} fill={labelBackground === 'transparent' ? '#ffffff' : labelBackground} />
         <text fill={st.textColor} fontFamily={st.fontFamily} fontSize={st.fontSize} textAnchor="middle" style={{ userSelect: 'none', whiteSpace: 'pre' }}>
           {lines.map((ln, i) => (
-            <tspan key={i} x={r.mid.x} y={r.mid.y - height / 2 + 2 + i * lh + lh / 2} dominantBaseline="central">
+            <tspan key={i} x={r.mid.x} y={r.mid.y - height / 2 + 2 + i * lh + lh / 2} dy="0.35em">
               {ln || ' '}
             </tspan>
           ))}

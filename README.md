@@ -1,4 +1,6 @@
-# Flowboard
+<img src="public/logo.svg" width="64" alt="Esquisso logo">
+
+# Esquisso
 
 A personal diagramming app that runs entirely on your own computer: flowcharts,
 process maps, architecture sketches and wireframes. No account, no cloud, no
@@ -46,7 +48,7 @@ npm run preview  # serves ./dist at http://127.0.0.1:4173
 
 Chrome, Edge and other Chromium browsers give the best experience: **Save**
 writes straight back to the same file. In Firefox and Safari, Save downloads
-a `.flowboard.json` file instead.
+a `.esquisso.json` file instead.
 
 ## What it can do
 
@@ -56,7 +58,8 @@ a `.flowboard.json` file instead.
   text, sticky note and the standard flowchart set (process, decision,
   terminator, data, document, database, predefined process, manual input,
   manual operation, preparation, delay), callouts (rectangular, rounded,
-  oval, thought bubble), cloud, a titled container (added behind other
+  oval, thought bubble), cloud, swimlanes (title band plus named columns or rows; set the lane
+  count in the right panel), a titled container (added behind other
   shapes), block arrows, chevron, pentagon, octagon and cross. Click a tile to add it, drag it onto
   the canvas, or pick a tool (R, O, D, N) and click or drag on the canvas.
 - **Icons**: a searchable library of about 40,000 free icons, including
@@ -97,15 +100,15 @@ a `.flowboard.json` file instead.
   dark and following your system setting. Diagrams keep their own background.
 - **Undo/redo** for everything (Ctrl/⌘+Z, Ctrl/⌘+Shift+Z).
 - **Pages**: several pages per diagram; double-click a tab to rename.
-- **Save / open** `.flowboard.json` files, **autosave** in the browser, and
-  **export** PNG (2x, optional transparent background), SVG, or just the
-  selection.
+- **Save / open** `.esquisso.json` files (older `.flowboard.json` files from before the rename open too), **autosave** in the browser, and
+  **export** PNG (2x, optional transparent background), SVG, vector PDF, or
+  just the selection.
 
 Press **?** in the app for the full list of shortcuts.
 
 ## Files and privacy
 
-- Diagrams are plain JSON (`.flowboard.json`), easy to back up or put in git.
+- Diagrams are plain JSON (`.esquisso.json`), easy to back up or put in git.
   Imported images are embedded in the file, so it stays self-contained.
 - The autosave copy is kept in your browser's local storage on this machine.
   It is a safety net, not a replacement for saving files.
@@ -127,7 +130,7 @@ Code map:
 | `src/store.ts` | App state, undo/redo history and all editing actions |
 | `src/components/Canvas.tsx` | Canvas rendering and mouse interaction |
 | `src/components/` | Toolbar, shape/icon library, inspector, pages bar |
-| `src/lib/io.ts` | Save/open, autosave, PNG/SVG export, image import |
+| `src/lib/io.ts` | Save/open, autosave, PNG/SVG/PDF export, image import |
 | `src/lib/icons.ts` | Bundled icon sets (loaded on demand) |
 
 ## Licenses

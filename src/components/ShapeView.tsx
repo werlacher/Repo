@@ -152,7 +152,7 @@ function LabelText({ text, box: tb, st }: { text: string; box: Rect; st: ShapeSt
       style={{ userSelect: 'none', whiteSpace: 'pre' }}
     >
       {lines.map((ln, i) => (
-        <tspan key={i} x={x} y={top + i * lh + lh / 2} dominantBaseline="central">
+        <tspan key={i} x={x} y={top + i * lh + lh / 2} dy="0.35em">
           {ln || ' '}
         </tspan>
       ))}
