@@ -34,16 +34,27 @@ function ShapePreview({ type }: { type: ShapeType }) {
   );
 }
 
-function ShapesPanel() {
+function ShapesPanel({ onSearchIcons }: { onSearchIcons: (q: string) => void }) {
   const tool = useApp((s) => s.tool);
   const [filter, setFilter] = useState('');
   const q = filter.trim().toLowerCase();
+  const noShapes = !!q && LIBRARY.every((cat) => !cat.items.some((i) => i.label.toLowerCase().includes(q)));
   return (
     <div className="panel-scroll">
       <div className="search-box">
         <Icon name="search" size={15} />
-        <input placeholder="Search shapes" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <input
+          placeholder="Search shapes and icons"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && noShapes && onSearchIcons(filter)}
+        />
       </div>
+      {q && (
+        <button type="button" className={`wide-btn${noShapes ? ' primary' : ''}`} onClick={() => onSearchIcons(filter)}>
+          <Icon name="search" size={15} /> {noShapes ? `No shapes match. Search icons and flags for “${filter.trim()}”` : `Also search icons for “${filter.trim()}”`}
+        </button>
+      )}
       {LIBRARY.map((cat) => {
         const items = cat.items.filter((i) => !q || i.label.toLowerCase().includes(q));
         if (!items.length) return null;
@@ -86,9 +97,9 @@ function IconPreview({ icon }: { icon: IconData }) {
   );
 }
 
-function IconsPanel() {
-  const [prefix, setPrefix] = useState(ICON_SETS[0].prefix);
-  const [query, setQuery] = useState('');
+function IconsPanel({ initial }: { initial: { prefix: string; query: string } | null }) {
+  const [prefix, setPrefix] = useState(initial?.prefix ?? ICON_SETS[0].prefix);
+  const [query, setQuery] = useState(initial?.query ?? '');
   const [set, setSet] = useState<IconifyJSON | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,7 +151,16 @@ function IconsPanel() {
               );
             })}
           </div>
-          {results.length === 0 && <p className="muted small">No icons match “{query}”.</p>}
+          {results.length === 0 && (
+            <div className="muted small">
+              <p>No icons match “{query}” in {info.name}. Try another set:</p>
+              <div className="row wrap">
+                {ICON_SETS.filter((s) => s.prefix !== prefix).map((s) => (
+                  <button type="button" key={s.prefix} className="chip" onClick={() => setPrefix(s.prefix)}>{s.name}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {results.length >= 240 && <p className="muted small">Showing the first 240 matches. Refine your search to see more.</p>}
         </>
       )}
@@ -153,13 +173,29 @@ function IconsPanel() {
 
 export function Sidebar() {
   const [tab, setTab] = useState<'shapes' | 'icons'>('shapes');
+  const [iconSearch, setIconSearch] = useState<{ prefix: string; query: string } | null>(null);
+
+  // From the Shapes search: open Icons on the set most likely to have it (country names go to flags).
+  const searchIconsFor = async (raw: string) => {
+    const query = raw.trim();
+    let prefix = 'tabler';
+    try {
+      const flags = await loadSet('flag');
+      if (searchIcons(iconNames(flags), query, 1, (n) => iconKeywords('flag', n)).length) prefix = 'flag';
+    } catch {
+      /* fall back to Tabler */
+    }
+    setIconSearch({ prefix, query });
+    setTab('icons');
+  };
+
   return (
     <aside className="sidebar left">
       <div className="tabs">
         <button type="button" className={tab === 'shapes' ? 'active' : ''} onClick={() => setTab('shapes')}>Shapes</button>
         <button type="button" className={tab === 'icons' ? 'active' : ''} onClick={() => setTab('icons')}>Icons</button>
       </div>
-      {tab === 'shapes' ? <ShapesPanel /> : <IconsPanel />}
+      {tab === 'shapes' ? <ShapesPanel onSearchIcons={searchIconsFor} /> : <IconsPanel key={JSON.stringify(iconSearch)} initial={iconSearch} />}
     </aside>
   );
 }
