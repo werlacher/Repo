@@ -24,6 +24,10 @@ machines. Stop it with `Ctrl+C`.
 what's needed on first run, starts the app and opens your browser. Keep that
 window open while you work.
 
+**Desktop shortcut with the app icon (Windows):** double-click
+`create-shortcut.bat` once. It puts an "Esquisso" shortcut on your Desktop that
+starts the app, using `esquisso.ico`.
+
 ### If the page doesn't open or stays blank
 
 - Use the address the terminal prints, `http://127.0.0.1:5173`. Opening
