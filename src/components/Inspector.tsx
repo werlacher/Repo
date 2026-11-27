@@ -1,5 +1,6 @@
 import {
-  alignSelection, currentPage, deleteSelection, distributeSelection, duplicateSelection, reorder, setState,
+  alignSelection, currentPage, deleteSelection, distributeSelection, duplicateSelection, groupSelection, reorder, setState,
+  toggleLockSelection, ungroupSelection,
   updateConnectorStyle, updateShapeGeometry, updateShapeStyle, useApp, commitDoc, getState,
 } from '../store';
 import { FONTS } from '../model/defaults';
@@ -47,8 +48,8 @@ function ShapeSection({ shapes }: { shapes: Shape[] }) {
   return (
     <>
       {single && (
-        <Section title={SHAPES[single.type].label}>
-          <div className="grid-2">
+        <Section title={SHAPES[single.type].label + (single.locked ? ' (locked)' : '')}>
+          <div className={`grid-2${single.locked ? ' disabled' : ''}`}>
             <NumberField label="X" value={single.x} onCommit={(v) => updateShapeGeometry(single.id, { x: v })} />
             <NumberField label="Y" value={single.y} onCommit={(v) => updateShapeGeometry(single.id, { y: v })} />
             <NumberField label="W" value={single.w} min={10} onCommit={(v) => updateShapeGeometry(single.id, { w: v })} />
@@ -131,9 +132,14 @@ function ConnectorSection({ conns }: { conns: Connector[] }) {
   );
 }
 
-function ArrangeSection({ count, shapeCount }: { count: number; shapeCount: number }) {
+function ArrangeSection({ count, shapeCount, grouped, locked }: { count: number; shapeCount: number; grouped: boolean; locked: boolean }) {
   return (
     <Section title="Arrange">
+      <div className="row wrap">
+        {count >= 2 && <IconButton icon="group" title="Group (Ctrl+G)" onClick={groupSelection} />}
+        {grouped && <IconButton icon="ungroup" title="Ungroup (Ctrl+Shift+G)" onClick={ungroupSelection} />}
+        <IconButton icon={locked ? 'unlock' : 'lock'} title={locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock position and size (Ctrl+Shift+L)'} active={locked} onClick={toggleLockSelection} />
+      </div>
       <div className="row wrap">
         <IconButton icon="front" title="Bring to front (Ctrl+Shift+])" onClick={() => reorder('front')} />
         <IconButton icon="back" title="Send to back (Ctrl+Shift+[)" onClick={() => reorder('back')} />
@@ -156,7 +162,7 @@ function ArrangeSection({ count, shapeCount }: { count: number; shapeCount: numb
           )}
         </div>
       )}
-      <p className="muted small">{count} selected</p>
+      <p className="muted small">{count} selected{locked ? ' · locked' : ''}</p>
     </Section>
   );
 }
@@ -193,7 +199,14 @@ export function Inspector() {
         {!selection.length && <PageSection />}
         {shapes.length > 0 && <ShapeSection shapes={shapes} />}
         {conns.length > 0 && <ConnectorSection conns={conns} />}
-        {selection.length > 0 && <ArrangeSection count={selection.length} shapeCount={shapes.length} />}
+        {selection.length > 0 && (
+          <ArrangeSection
+            count={selection.length}
+            shapeCount={shapes.length}
+            grouped={[...shapes, ...conns].some((e) => e.groupId)}
+            locked={[...shapes, ...conns].every((e) => e.locked)}
+          />
+        )}
       </div>
     </aside>
   );

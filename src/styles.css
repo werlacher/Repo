@@ -133,6 +133,7 @@ a { color: var(--accent); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
 .row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 .row.wrap { flex-wrap: wrap; }
+.grid-2.disabled { opacity: 0.5; pointer-events: none; }
 .check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
 .segmented button { border: none; background: #fff; padding: 5px 9px; color: var(--ink-2); display: flex; align-items: center; }

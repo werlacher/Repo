@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type PointerEvent as RPointerEvent } from 'react';
 import {
-  addElements, addShapeAt, currentPage, getState, makeConnector, makeShape, pushHistory, setDocTransient,
+  addElements, addShapeAt, currentPage, expandToGroups, isWholeGroup, getState, makeConnector, makeShape, pushHistory, setDocTransient,
   setState, shapeLookup, useApp, withElements, zoomAt, type View,
 } from '../store';
 import {
@@ -9,7 +9,7 @@ import {
 } from '../model/geometry';
 import { computeRoute } from '../model/connectors';
 import { SHAPES } from '../model/shapes';
-import type { Connector, DiagramDoc, Endpoint, Point, Rect, Shape, ShapeType, Side } from '../model/types';
+import type { Connector, DiagramDoc, DiagramElement, Endpoint, Point, Rect, Shape, ShapeType, Side } from '../model/types';
 import { ShapeView } from './ShapeView';
 import { ConnectorView } from './ConnectorView';
 import { TextEditor } from './TextEditor';
@@ -22,9 +22,10 @@ type Drag =
   | {
       kind: 'move'; start: Point; snapshot: DiagramDoc; ids: Set<string>;
       orig: Map<string, Point>; origConn: Map<string, { from: Endpoint; to: Endpoint }>;
-      bbox: Rect | null; moved: boolean; clickedId: string; collapseTo: string | null;
+      bbox: Rect | null; moved: boolean; clickedId: string; collapseTo: string[] | null;
     }
   | { kind: 'resize'; id: string; hx: number; hy: number; orig: Shape; snapshot: DiagramDoc }
+  | { kind: 'scale'; hx: number; hy: number; bbox: Rect; ids: Set<string>; snapshot: DiagramDoc }
   | { kind: 'rotate'; id: string; orig: Shape; snapshot: DiagramDoc }
   | { kind: 'endpoint'; id: string; end: 'from' | 'to'; snapshot: DiagramDoc }
   | { kind: 'connect'; from: Endpoint; start: Point; current: Point }
@@ -177,6 +178,15 @@ export function Canvas() {
       beginDrag({ kind: 'resize', id, hx: Number(target!.dataset.hx), hy: Number(target!.dataset.hy), orig, snapshot: st.doc }, e);
       return;
     }
+    if (role === 'ghandle') {
+      const sel = new Set(st.selection);
+      const rects = pageNow.elements.filter((el) => sel.has(el.id)).map((el) => elementBounds(el, lookup));
+      beginDrag({
+        kind: 'scale', hx: Number(target!.dataset.hx), hy: Number(target!.dataset.hy), bbox: unionRects(rects)!,
+        ids: sel, snapshot: st.doc,
+      }, e);
+      return;
+    }
     if (role === 'rotate') {
       beginDrag({ kind: 'rotate', id, orig: lookup.get(id)!, snapshot: st.doc }, e);
       return;
@@ -214,13 +224,16 @@ export function Canvas() {
     // select tool
     if (role === 'shape' || role === 'connector') {
       let sel = st.selection;
-      let collapseTo: string | null = null;
+      let collapseTo: string[] | null = null;
+      const members = expandToGroups([id], pageNow.elements);
       if (e.shiftKey || e.metaKey || e.ctrlKey) {
-        sel = sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id];
+        sel = members.every((m) => sel.includes(m)) ? sel.filter((x) => !members.includes(x)) : [...new Set([...sel, ...members])];
       } else if (!sel.includes(id)) {
-        sel = [id];
-      } else if (sel.length > 1) {
-        collapseTo = id; // a plain click (no drag) on a selected item selects only it
+        sel = members;
+      } else if (members.length > 1 && isWholeGroup(sel, pageNow.elements) && sel.length === members.length) {
+        collapseTo = [id]; // second click on a selected group picks the single item
+      } else if (sel.length > members.length) {
+        collapseTo = members; // a plain click (no drag) on a selected item selects only it (or its group)
       }
       setState({ selection: sel });
       const ids = new Set(sel);
@@ -228,7 +241,7 @@ export function Canvas() {
       const origConn = new Map<string, { from: Endpoint; to: Endpoint }>();
       const rects: Rect[] = [];
       for (const el of pageNow.elements) {
-        if (!ids.has(el.id)) continue;
+        if (!ids.has(el.id) || el.locked) continue;
         if (el.kind === 'shape') {
           orig.set(el.id, { x: el.x, y: el.y });
           rects.push(shapeBounds(el));
@@ -299,6 +312,11 @@ export function Canvas() {
         setDocTransient(withElements(d.snapshot, st.pageId, (els) => els.map((el) => (el.id === d.id ? next : el))));
         break;
       }
+      case 'scale': {
+        const next = scaleSelection(d, p, e.shiftKey, st.settings.snapToGrid ? st.settings.gridSize : 0);
+        setDocTransient(withElements(d.snapshot, st.pageId, next));
+        break;
+      }
       case 'rotate': {
         const c = shapeCenter(d.orig);
         let a = (Math.atan2(p.y - c.y, p.x - c.x) * 180) / Math.PI + 90;
@@ -336,7 +354,9 @@ export function Canvas() {
         setMarquee(r);
         const pageNow = currentPage(st);
         const lookup = shapeLookup(pageNow.elements);
-        const hits = pageNow.elements.filter((el) => rectContains(r, elementBounds(el, lookup))).map((el) => el.id);
+        const hitSet = new Set(pageNow.elements.filter((el) => !el.locked && rectContains(r, elementBounds(el, lookup))).map((el) => el.id));
+        // a group is only picked up when all of it is inside the box
+        const hits = [...hitSet].filter((id) => expandToGroups([id], pageNow.elements).every((m) => hitSet.has(m)));
         const sel = d.additive ? Array.from(new Set([...d.base, ...hits])) : hits;
         if (sel.join() !== st.selection.join()) setState({ selection: sel });
         break;
@@ -362,9 +382,10 @@ export function Canvas() {
     switch (d.kind) {
       case 'move':
         if (d.moved) pushHistory(d.snapshot);
-        else if (d.collapseTo) setState({ selection: [d.collapseTo] });
+        else if (d.collapseTo) setState({ selection: d.collapseTo });
         break;
       case 'resize':
+      case 'scale':
       case 'rotate':
       case 'endpoint':
         pushHistory(d.snapshot);
@@ -399,6 +420,11 @@ export function Canvas() {
     for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
       const g = el.closest('[data-role="shape"],[data-role="connector"]') as SVGElement | null;
       if (g?.dataset.id) {
+        const el = currentPage(st).elements.find((x) => x.id === g.dataset.id);
+        if (el?.locked) {
+          setState({ selection: expandToGroups([el.id]) });
+          return;
+        }
         setState({ selection: [g.dataset.id], editingId: g.dataset.id });
         return;
       }
@@ -501,7 +527,7 @@ export function Canvas() {
               return (
                 <g key={c.id}>
                   <path d={r.curved ? `M${r.points[0].x} ${r.points[0].y} C${r.points.slice(1).map((q) => `${q.x} ${q.y}`).join(' ')}` : `M${r.points.map((q) => `${q.x} ${q.y}`).join(' L')}`} fill="none" stroke={ACCENT} strokeWidth={1 / z} strokeDasharray={`${4 / z} ${3 / z}`} pointerEvents="none" />
-                  {(['from', 'to'] as const).map((end) => {
+                  {!c.locked && (['from', 'to'] as const).map((end) => {
                     const q = end === 'from' ? r.start : r.end;
                     const glued = !!c[end].shapeId;
                     return (
@@ -513,10 +539,16 @@ export function Canvas() {
               );
             })}
             {selection.length > 1 && (() => {
-              const bb = unionRects(selectedShapes.map(shapeBounds));
+              const bb = unionRects(page.elements.filter((el) => selSet.has(el.id)).map((el) => elementBounds(el, shapes)));
               return bb ? <rect x={bb.x - 4 / z} y={bb.y - 4 / z} width={bb.w + 8 / z} height={bb.h + 8 / z} fill="none" stroke={ACCENT} strokeWidth={1 / z} strokeDasharray={`${4 / z} ${3 / z}`} pointerEvents="none" /> : null;
             })()}
-            {single && !editingId && dragKind !== 'move' && <ResizeHandles shape={single} zoom={z} />}
+            {single && !single.locked && !editingId && dragKind !== 'move' && <ResizeHandles shape={single} zoom={z} />}
+            {selection.length > 1 && dragKind !== 'move' && !editingId && (() => {
+              const movable = page.elements.some((el) => selSet.has(el.id) && !el.locked);
+              const bb = unionRects(page.elements.filter((el) => selSet.has(el.id)).map((el) => elementBounds(el, shapes)));
+              return movable && bb ? <GroupHandles bbox={bb} zoom={z} /> : null;
+            })()}
+            {page.elements.map((el) => (el.locked && selSet.has(el.id) ? <LockBadge key={`lock-${el.id}`} bounds={elementBounds(el, shapes)} zoom={z} /> : null))}
             {showAnchors && anchorShape && (
               <AnchorDots
                 shape={anchorShape}
@@ -708,6 +740,74 @@ function AnchorDots({ shape, zoom, offset, active }: { shape: Shape; zoom: numbe
           />
         );
       })}
+    </g>
+  );
+}
+
+/** Scale every unlocked selected element relative to the corner opposite the dragged handle. */
+function scaleSelection(
+  d: Extract<Drag, { kind: 'scale' }>, pointer: Point, keepRatio: boolean, grid: number,
+): (els: DiagramElement[]) => DiagramElement[] {
+  const b = d.bbox;
+  const p = grid ? { x: snapTo(pointer.x, grid), y: snapTo(pointer.y, grid) } : pointer;
+  const fx = b.x + (1 - d.hx) * b.w;
+  const fy = b.y + (1 - d.hy) * b.h;
+  let sx = Math.max(10, d.hx === 1 ? p.x - fx : fx - p.x) / Math.max(b.w, 1);
+  let sy = Math.max(10, d.hy === 1 ? p.y - fy : fy - p.y) / Math.max(b.h, 1);
+  if (keepRatio) sx = sy = Math.max(sx, sy);
+  const tx = (x: number) => fx + (x - fx) * sx;
+  const ty = (y: number) => fy + (y - fy) * sy;
+  return (els) =>
+    els.map((el) => {
+      if (!d.ids.has(el.id) || el.locked) return el;
+      if (el.kind === 'shape') {
+        const cx = tx(el.x + el.w / 2);
+        const cy = ty(el.y + el.h / 2);
+        const w = Math.max(4, el.w * sx);
+        const h = Math.max(4, el.h * sy);
+        return { ...el, x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w: Math.round(w), h: Math.round(h) };
+      }
+      const mv = (ep: Endpoint): Endpoint => (ep.shapeId ? ep : { ...ep, x: tx(ep.x), y: ty(ep.y) });
+      return { ...el, from: mv(el.from), to: mv(el.to) };
+    });
+}
+
+function GroupHandles({ bbox, zoom }: { bbox: Rect; zoom: number }) {
+  const s = 8 / zoom;
+  const pad = 4 / zoom;
+  const corners: [number, number, string][] = [[0, 0, 'nwse'], [1, 0, 'nesw'], [1, 1, 'nwse'], [0, 1, 'nesw']];
+  return (
+    <g>
+      {corners.map(([hx, hy, cur]) => (
+        <rect
+          key={`${hx}${hy}`}
+          data-role="ghandle"
+          data-hx={hx}
+          data-hy={hy}
+          x={bbox.x - pad + hx * (bbox.w + 2 * pad) - s / 2}
+          y={bbox.y - pad + hy * (bbox.h + 2 * pad) - s / 2}
+          width={s}
+          height={s}
+          rx={1.5 / zoom}
+          fill={ACCENT}
+          stroke="#fff"
+          strokeWidth={1 / zoom}
+          style={{ cursor: `${cur}-resize` }}
+        >
+          <title>Resize selection (Shift keeps proportions)</title>
+        </rect>
+      ))}
+    </g>
+  );
+}
+
+function LockBadge({ bounds, zoom }: { bounds: Rect; zoom: number }) {
+  const k = 1 / zoom;
+  return (
+    <g transform={`translate(${bounds.x + bounds.w + 6 * k} ${bounds.y - 18 * k}) scale(${k})`} pointerEvents="none">
+      <rect width={16} height={16} rx={4} fill="#0f172a" />
+      <rect x={4} y={7.5} width={8} height={6} rx={1} fill="#fff" />
+      <path d="M5.5 7.5V6a2.5 2.5 0 015 0v1.5" fill="none" stroke="#fff" strokeWidth={1.4} />
     </g>
   );
 }

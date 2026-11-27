@@ -53,7 +53,15 @@ export interface ShapeStyle {
   vAlign: VAlign;
 }
 
-export interface Shape {
+/** Fields every element has. */
+export interface ElementBase {
+  /** Elements sharing a groupId are selected, moved and resized together. */
+  groupId?: string;
+  /** Locked elements can be selected but not moved, resized, rotated, edited or deleted. */
+  locked?: boolean;
+}
+
+export interface Shape extends ElementBase {
   kind: 'shape';
   id: string;
   type: ShapeType;
@@ -118,7 +126,7 @@ export interface ConnectorStyle {
   textColor: string;
 }
 
-export interface Connector {
+export interface Connector extends ElementBase {
   kind: 'connector';
   id: string;
   from: Endpoint;

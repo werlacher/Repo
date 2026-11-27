@@ -163,6 +163,70 @@ describe('store', () => {
   });
 });
 
+describe('groups and locks', () => {
+  beforeEach(() => store.resetStore());
+
+  const three = () => {
+    const a = store.makeShape('rectangle', { x: 0, y: 0 }, { w: 20, h: 20 });
+    const b = store.makeShape('rectangle', { x: 100, y: 40 }, { w: 20, h: 20 });
+    const c = store.makeShape('rectangle', { x: 300, y: 90 }, { w: 20, h: 20 });
+    store.addElements([a, b, c]);
+    return [a, b, c];
+  };
+
+  it('groups, expands selection to the group, and ungroups', () => {
+    const [a, b, c] = three();
+    store.setState({ selection: [a.id, b.id] });
+    store.groupSelection();
+    expect(store.expandToGroups([a.id]).sort()).toEqual([a.id, b.id].sort());
+    expect(store.expandToGroups([c.id])).toEqual([c.id]);
+    expect(store.isWholeGroup([a.id, b.id])).toBe(true);
+    store.ungroupSelection();
+    expect(store.currentPage().elements.every((e) => !e.groupId)).toBe(true);
+  });
+
+  it('gives pasted groups a new group id', () => {
+    const [a, b] = three();
+    store.setState({ selection: [a.id, b.id] });
+    store.groupSelection();
+    store.copySelection();
+    store.paste();
+    const els = store.currentPage().elements;
+    expect(els[3].groupId).toBeTruthy();
+    expect(els[3].groupId).toBe(els[4].groupId);
+    expect(els[3].groupId).not.toBe(els[0].groupId);
+  });
+
+  it('aligns a group as one unit', () => {
+    const [a, b, c] = three();
+    store.setState({ selection: [a.id, b.id] });
+    store.groupSelection();
+    store.setState({ selection: [a.id, b.id, c.id] });
+    store.alignSelection('top');
+    const [na, nb, nc] = store.currentPage().elements as Shape[];
+    expect(nb.y - na.y).toBe(40); // the group keeps its internal layout
+    expect(nc.y).toBe(na.y);
+  });
+
+  it('does not delete, nudge or resize locked items', () => {
+    const [a, b] = three();
+    store.setState({ selection: [a.id] });
+    store.toggleLockSelection();
+    store.nudgeSelection(10, 0);
+    store.updateShapeGeometry(a.id, { w: 500 });
+    store.setState({ selection: [a.id, b.id] });
+    store.deleteSelection();
+    const els = store.currentPage().elements as Shape[];
+    expect(els.map((e) => e.id)).toContain(a.id);
+    expect(els.map((e) => e.id)).not.toContain(b.id);
+    const la = els.find((e) => e.id === a.id)!;
+    expect(la).toMatchObject({ x: a.x, w: a.w, locked: true });
+    store.setState({ selection: [a.id] });
+    store.toggleLockSelection();
+    expect(store.currentPage().elements[0].locked).toBeUndefined();
+  });
+});
+
 describe('file format', () => {
   it('round-trips a document and fills in missing style fields', () => {
     store.resetStore();

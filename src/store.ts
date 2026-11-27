@@ -265,8 +265,12 @@ export function freeSpotNearCenter(): Point {
 export function deleteSelection() {
   const s = state;
   if (!s.selection.length) return;
-  const del = new Set(s.selection);
   const page = currentPage(s);
+  const del = new Set(selectedElements(s).filter((e) => !e.locked).map((e) => e.id));
+  if (!del.size) {
+    toast('Locked items can’t be deleted. Unlock them first.');
+    return;
+  }
   const shapes = shapeLookup(page.elements);
   editElements(
     (els) =>
@@ -281,7 +285,7 @@ export function deleteSelection() {
           if (e.to.shapeId && del.has(e.to.shapeId)) next = { ...next, to: { x: r.end.x, y: r.end.y } };
           return next;
         }),
-    { selection: [] },
+    { selection: s.selection.filter((id) => !del.has(id)) },
   );
 }
 
@@ -298,7 +302,7 @@ export function updateConnectorStyle(ids: string[], patch: Partial<ConnectorStyl
 }
 
 export function updateShapeGeometry(id: string, patch: Partial<Pick<Shape, 'x' | 'y' | 'w' | 'h' | 'rotation'>>) {
-  mapElements([id], (e) => (e.kind === 'shape' ? { ...e, ...patch } : e));
+  mapElements([id], (e) => (e.kind === 'shape' && !e.locked ? { ...e, ...patch } : e));
 }
 
 export function setText(id: string, text: string) {
@@ -321,13 +325,65 @@ export function nudgeSelection(dx: number, dy: number) {
   editElements(
     (els) =>
       els.map((e) => {
-        if (!ids.has(e.id)) return e;
+        if (!ids.has(e.id) || e.locked) return e;
         if (e.kind === 'shape') return { ...e, x: e.x + dx, y: e.y + dy };
         const mv = (ep: Endpoint): Endpoint => (ep.shapeId ? ep : { ...ep, x: ep.x + dx, y: ep.y + dy });
         return { ...e, from: mv(e.from), to: mv(e.to) };
       }),
     { coalesceKey: 'nudge' },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Groups and locks
+
+/** Add every member of any group touched by `ids`. */
+export function expandToGroups(ids: string[], els: DiagramElement[] = currentPage().elements): string[] {
+  const set = new Set(ids);
+  const groups = new Set<string>();
+  for (const e of els) if (set.has(e.id) && e.groupId) groups.add(e.groupId);
+  if (!groups.size) return ids;
+  for (const e of els) if (e.groupId && groups.has(e.groupId)) set.add(e.id);
+  return els.filter((e) => set.has(e.id)).map((e) => e.id);
+}
+
+/** True when `ids` is exactly the members of one group. */
+export function isWholeGroup(ids: string[], els: DiagramElement[] = currentPage().elements): boolean {
+  if (ids.length < 2) return false;
+  const set = new Set(ids);
+  const sel = els.filter((e) => set.has(e.id));
+  const g = sel[0]?.groupId;
+  return !!g && sel.every((e) => e.groupId === g) && els.filter((e) => e.groupId === g).length === ids.length;
+}
+
+export function groupSelection() {
+  const sel = selectedElements();
+  if (sel.length < 2) return;
+  const gid = newId('g');
+  mapElements(sel.map((e) => e.id), (e) => ({ ...e, groupId: gid }));
+  toast(`Grouped ${sel.length} items`);
+}
+
+export function ungroupSelection() {
+  const sel = selectedElements().filter((e) => e.groupId);
+  if (!sel.length) return;
+  mapElements(sel.map((e) => e.id), (e) => {
+    const { groupId: _drop, ...rest } = e;
+    return rest as DiagramElement;
+  });
+  toast('Ungrouped');
+}
+
+export function toggleLockSelection() {
+  const sel = selectedElements();
+  if (!sel.length) return;
+  const lock = !sel.every((e) => e.locked);
+  mapElements(sel.map((e) => e.id), (e) => {
+    if (lock) return { ...e, locked: true };
+    const { locked: _drop, ...rest } = e;
+    return rest as DiagramElement;
+  });
+  toast(lock ? 'Locked. Select it and press Ctrl+Shift+L to unlock.' : 'Unlocked');
 }
 
 // ---------------------------------------------------------------------------
@@ -357,13 +413,35 @@ export function reorder(mode: 'front' | 'back' | 'forward' | 'backward') {
 
 export type AlignMode = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
 
-export function alignSelection(mode: AlignMode) {
+interface Unit {
+  ids: string[];
+  b: Rect;
+  locked: boolean;
+}
+
+/** Selected shapes, with each group treated as one unit. */
+function selectionUnits(): Unit[] {
   const shapes = selectedElements().filter((e): e is Shape => e.kind === 'shape');
-  if (shapes.length < 2) return;
-  const bb = unionRects(shapes.map(shapeBounds))!;
+  const map = new Map<string, Shape[]>();
+  for (const sh of shapes) {
+    const key = sh.groupId ?? sh.id;
+    map.set(key, [...(map.get(key) ?? []), sh]);
+  }
+  return [...map.values()].map((list) => ({
+    ids: list.map((x) => x.id),
+    b: unionRects(list.map(shapeBounds))!,
+    locked: list.some((x) => x.locked),
+  }));
+}
+
+export function alignSelection(mode: AlignMode) {
+  const units = selectionUnits();
+  if (units.length < 2) return;
+  const bb = unionRects(units.map((u) => u.b))!;
   const moves = new Map<string, Point>();
-  for (const s of shapes) {
-    const b = shapeBounds(s);
+  for (const u of units) {
+    if (u.locked) continue;
+    const b = u.b;
     let dx = 0, dy = 0;
     if (mode === 'left') dx = bb.x - b.x;
     if (mode === 'right') dx = bb.x + bb.w - (b.x + b.w);
@@ -371,15 +449,14 @@ export function alignSelection(mode: AlignMode) {
     if (mode === 'top') dy = bb.y - b.y;
     if (mode === 'bottom') dy = bb.y + bb.h - (b.y + b.h);
     if (mode === 'vcenter') dy = bb.y + bb.h / 2 - (b.y + b.h / 2);
-    moves.set(s.id, { x: dx, y: dy });
+    for (const id of u.ids) moves.set(id, { x: dx, y: dy });
   }
   applyMoves(moves);
 }
 
 export function distributeSelection(axis: 'h' | 'v') {
-  const shapes = selectedElements().filter((e): e is Shape => e.kind === 'shape');
-  if (shapes.length < 3) return;
-  const items = shapes.map((s) => ({ s, b: shapeBounds(s) }));
+  const items = selectionUnits();
+  if (items.length < 3) return;
   items.sort((a, b) => (axis === 'h' ? a.b.x - b.b.x : a.b.y - b.b.y));
   const first = items[0].b, last = items[items.length - 1].b;
   const span = axis === 'h' ? last.x + last.w - first.x : last.y + last.h - first.y;
@@ -389,7 +466,8 @@ export function distributeSelection(axis: 'h' | 'v') {
   const moves = new Map<string, Point>();
   for (const i of items) {
     const cur = axis === 'h' ? i.b.x : i.b.y;
-    moves.set(i.s.id, axis === 'h' ? { x: cursor - cur, y: 0 } : { x: 0, y: cursor - cur });
+    const m = axis === 'h' ? { x: cursor - cur, y: 0 } : { x: 0, y: cursor - cur };
+    if (!i.locked) for (const id of i.ids) moves.set(id, m);
     cursor += (axis === 'h' ? i.b.w : i.b.h) + gap;
   }
   applyMoves(moves);
@@ -438,6 +516,12 @@ export function hasClipboard() {
 export function cloneElements(els: DiagramElement[], offset: number): DiagramElement[] {
   const map = new Map<string, string>();
   for (const e of els) map.set(e.id, newId(e.kind === 'shape' ? 's' : 'c'));
+  const groups = new Map<string, string>();
+  const gid = (g?: string) => {
+    if (!g) return undefined;
+    if (!groups.has(g)) groups.set(g, newId('g'));
+    return groups.get(g);
+  };
   const ep = (p: Endpoint): Endpoint =>
     p.shapeId && map.has(p.shapeId)
       ? { ...p, shapeId: map.get(p.shapeId) }
@@ -446,8 +530,8 @@ export function cloneElements(els: DiagramElement[], offset: number): DiagramEle
         : { ...p, x: p.x + offset, y: p.y + offset };
   return els.map((e) =>
     e.kind === 'shape'
-      ? { ...e, id: map.get(e.id)!, x: e.x + offset, y: e.y + offset }
-      : { ...e, id: map.get(e.id)!, from: ep(e.from), to: ep(e.to) },
+      ? { ...e, id: map.get(e.id)!, groupId: gid(e.groupId), x: e.x + offset, y: e.y + offset }
+      : { ...e, id: map.get(e.id)!, groupId: gid(e.groupId), from: ep(e.from), to: ep(e.to) },
   );
 }
 

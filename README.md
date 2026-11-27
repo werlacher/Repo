@@ -49,6 +49,13 @@ a `.flowboard.json` file instead.
 - **Editing**: select, multi-select (Shift+click or drag a box), move, resize
   (Shift keeps proportions), rotate (Shift snaps to 15°), nudge with arrows,
   copy/cut/paste/duplicate, z-order, align and distribute.
+- **Groups**: Ctrl/⌘+G groups the selection so it selects, moves and aligns
+  as one; click a selected group again to pick a single item inside it;
+  Ctrl/⌘+Shift+G ungroups. Drag the corner handles of any multi-selection to
+  resize it all together (Shift keeps proportions).
+- **Locking**: Ctrl/⌘+Shift+L locks items so they can't be moved, resized,
+  rotated, edited or deleted, and box selection skips them (handy for
+  backgrounds and frames). A lock badge shows on selected locked items.
 - **Snapping**: grid snap and smart guides that line shapes up with their
   neighbours (hold Alt to move freely).
 - **Styling**: fill, line color/width/dash, opacity, font, size, color,

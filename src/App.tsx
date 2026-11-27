@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
-  copySelection, currentPage, cutSelection, deleteSelection, duplicateSelection, fitToContent, getState, hasClipboard,
+  copySelection, currentPage, cutSelection, deleteSelection, duplicateSelection, fitToContent, getState, groupSelection, hasClipboard,
+  toggleLockSelection, ungroupSelection,
   nudgeSelection, paste, redo, reorder, selectAll, setState, subscribe, undo, updateShapeStyle, useApp, zoomBy, zoomTo,
 } from './store';
 import { importImageFiles, openFile, saveFile, writeAutosave, writeSettings } from './lib/io';
@@ -53,6 +54,8 @@ export function App() {
           if (k === 'x') return cutSelection(), true;
           if (k === 'v') return hasClipboard() ? (paste(), true) : false; // fall through to system paste (images)
           if (k === 'd') return duplicateSelection(), true;
+          if (k === 'g') return (e.shiftKey ? ungroupSelection() : groupSelection()), true;
+          if (k === 'l' && e.shiftKey) return toggleLockSelection(), true;
           if (k === 'a') return selectAll(), true;
           if (k === 's') return saveFile(e.shiftKey), true;
           if (k === 'o') return openFile(), true;
@@ -79,7 +82,7 @@ export function App() {
         setHelp(false);
         return;
       }
-      if ((e.key === 'Enter' || e.key === 'F2') && s.selection.length === 1) {
+      if ((e.key === 'Enter' || e.key === 'F2') && s.selection.length === 1 && !currentPage(s).elements.find((x) => x.id === s.selection[0])?.locked) {
         setState({ editingId: s.selection[0] });
         e.preventDefault();
         return;
