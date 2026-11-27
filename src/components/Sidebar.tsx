@@ -3,7 +3,7 @@ import { addShapeAt, freeSpotNearCenter, useApp } from '../store';
 import { LIBRARY, SHAPES, shapePath } from '../model/shapes';
 import type { IconData, ShapeType } from '../model/types';
 import { LIBRARY_MIME, importImageFiles, pickFiles, type LibraryDragPayload } from '../lib/io';
-import { ICON_SETS, iconNames, loadSet, searchIcons, toIconData, type IconifyJSON } from '../lib/icons';
+import { ICON_SETS, iconKeywords, iconNames, loadSet, searchIcons, toIconData, type IconifyJSON } from '../lib/icons';
 import { Icon } from './ui';
 
 const SHORTCUT: Partial<Record<ShapeType, string>> = { rectangle: 'R', ellipse: 'O', diamond: 'D', note: 'N' };
@@ -20,7 +20,7 @@ function ShapePreview({ type }: { type: ShapeType }) {
   const h = def.defaultSize.h * k;
   if (type === 'text') {
     return (
-      <svg width="40" height="30" viewBox="0 0 40 30"><text x="20" y="20" textAnchor="middle" fontSize="15" fontFamily="Georgia, serif" fill="#334155">Aa</text></svg>
+      <svg width="40" height="30" viewBox="0 0 40 30"><text x="20" y="20" textAnchor="middle" fontSize="15" fontFamily="Georgia, serif" fill="currentColor">Aa</text></svg>
     );
   }
   const extra = def.extra?.(w, h);
@@ -82,7 +82,7 @@ function ShapesPanel() {
 
 function IconPreview({ icon }: { icon: IconData }) {
   return (
-    <svg width="28" height="28" viewBox={`${icon.vbX} ${icon.vbY} ${icon.vbW} ${icon.vbH}`} color="#334155" dangerouslySetInnerHTML={{ __html: icon.body }} />
+    <svg width="28" height="28" viewBox={`${icon.vbX} ${icon.vbY} ${icon.vbW} ${icon.vbH}`} color="currentColor" dangerouslySetInnerHTML={{ __html: icon.body }} />
   );
 }
 
@@ -101,7 +101,7 @@ function IconsPanel() {
   }, [prefix]);
 
   const names = useMemo(() => (set ? iconNames(set) : []), [set]);
-  const results = useMemo(() => searchIcons(names, query), [names, query]);
+  const results = useMemo(() => searchIcons(names, query, 240, (n) => iconKeywords(prefix, n)), [names, query, prefix]);
   const info = ICON_SETS.find((s) => s.prefix === prefix)!;
 
   return (

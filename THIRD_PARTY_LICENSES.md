@@ -11,6 +11,7 @@ permissive licenses (ISC, MIT, Apache 2.0, CC0) are included.
 | Tabler Icons | `@iconify-json/tabler` | Paweł Kuna | MIT |
 | Material Symbols | `@iconify-json/material-symbols` | Google | Apache 2.0 |
 | Phosphor | `@iconify-json/ph` | Phosphor Icons | MIT |
+| Country flags (flag-icons) | `@iconify-json/flag` | Panayiotis Lipiridis | MIT |
 | Simple Icons | `@iconify-json/simple-icons` | Simple Icons Collaborators | CC0 1.0 |
 | SVG Logos | `@iconify-json/logos` | Gil Barbara | CC0 1.0 |
 
@@ -56,11 +57,15 @@ Bemis); the MIT text is reproduced below.
 
 Source: https://github.com/tabler/tabler-icons — Copyright (c) 2020-2024 Paweł Kuna
 
+## Country flags — flag-icons (MIT)
+
+Source: https://github.com/lipis/flag-icons — Copyright (c) 2013 Panayiotis Lipiridis
+
 ## Phosphor (MIT)
 
 Source: https://github.com/phosphor-icons/core — Copyright (c) 2023 Phosphor Icons
 
-### MIT License text (applies to Tabler Icons, Phosphor and Feather)
+### MIT License text (applies to Tabler Icons, Phosphor, flag-icons and Feather)
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy

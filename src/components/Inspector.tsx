@@ -1,6 +1,7 @@
 import {
-  alignSelection, currentPage, deleteSelection, distributeSelection, duplicateSelection, reorder, setState,
-  updateConnectorStyle, updateShapeGeometry, updateShapeStyle, useApp, commitDoc, getState,
+  alignSelection, currentPage, deleteSelection, distributeSelection, duplicateSelection, groupSelection, reorder, setState,
+  toggleLockSelection, ungroupSelection,
+  updateConnectorStyle, updateShapeGeometry, updateShapeStyle, useApp, commitDoc, getState, resetRoute,
 } from '../store';
 import { FONTS } from '../model/defaults';
 import { SHAPES } from '../model/shapes';
@@ -47,8 +48,8 @@ function ShapeSection({ shapes }: { shapes: Shape[] }) {
   return (
     <>
       {single && (
-        <Section title={SHAPES[single.type].label}>
-          <div className="grid-2">
+        <Section title={SHAPES[single.type].label + (single.locked ? ' (locked)' : '')}>
+          <div className={`grid-2${single.locked ? ' disabled' : ''}`}>
             <NumberField label="X" value={single.x} onCommit={(v) => updateShapeGeometry(single.id, { x: v })} />
             <NumberField label="Y" value={single.y} onCommit={(v) => updateShapeGeometry(single.id, { y: v })} />
             <NumberField label="W" value={single.w} min={10} onCommit={(v) => updateShapeGeometry(single.id, { w: v })} />
@@ -126,14 +127,25 @@ function ConnectorSection({ conns }: { conns: Connector[] }) {
         <NumberField label="Label size" value={st.fontSize} min={6} max={120} onCommit={(v) => set({ fontSize: v })} />
         <ColorField label="Label color" value={st.textColor} onChange={(v, live) => set({ textColor: v }, live)} />
       </div>
-      <p className="muted small">Double-click a line to add a label. Drag its end dots to reconnect.</p>
+      {conns.some((c) => c.waypoints?.length) && (
+        <button type="button" className="wide-btn" onClick={() => resetRoute(ids)}>Reset to automatic route</button>
+      )}
+      <p className="muted small">
+        Double-click a line to add a label. Drag its end dots to reconnect.
+        {st.routing === 'orthogonal' ? ' Drag a middle segment grip to reroute it.' : ' Drag the small circles to add bend points; double-click a bend point to remove it.'}
+      </p>
     </Section>
   );
 }
 
-function ArrangeSection({ count, shapeCount }: { count: number; shapeCount: number }) {
+function ArrangeSection({ count, shapeCount, grouped, locked }: { count: number; shapeCount: number; grouped: boolean; locked: boolean }) {
   return (
     <Section title="Arrange">
+      <div className="row wrap">
+        {count >= 2 && <IconButton icon="group" title="Group (Ctrl+G)" onClick={groupSelection} />}
+        {grouped && <IconButton icon="ungroup" title="Ungroup (Ctrl+Shift+G)" onClick={ungroupSelection} />}
+        <IconButton icon={locked ? 'unlock' : 'lock'} title={locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock position and size (Ctrl+Shift+L)'} active={locked} onClick={toggleLockSelection} />
+      </div>
       <div className="row wrap">
         <IconButton icon="front" title="Bring to front (Ctrl+Shift+])" onClick={() => reorder('front')} />
         <IconButton icon="back" title="Send to back (Ctrl+Shift+[)" onClick={() => reorder('back')} />
@@ -156,7 +168,7 @@ function ArrangeSection({ count, shapeCount }: { count: number; shapeCount: numb
           )}
         </div>
       )}
-      <p className="muted small">{count} selected</p>
+      <p className="muted small">{count} selected{locked ? ' · locked' : ''}</p>
     </Section>
   );
 }
@@ -193,7 +205,14 @@ export function Inspector() {
         {!selection.length && <PageSection />}
         {shapes.length > 0 && <ShapeSection shapes={shapes} />}
         {conns.length > 0 && <ConnectorSection conns={conns} />}
-        {selection.length > 0 && <ArrangeSection count={selection.length} shapeCount={shapes.length} />}
+        {selection.length > 0 && (
+          <ArrangeSection
+            count={selection.length}
+            shapeCount={shapes.length}
+            grouped={[...shapes, ...conns].some((e) => e.groupId)}
+            locked={[...shapes, ...conns].every((e) => e.locked)}
+          />
+        )}
       </div>
     </aside>
   );

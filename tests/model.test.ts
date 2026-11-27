@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { anchorPoint, boundaryToward, rayPolygon, rotatePoint, shapeBounds } from '../src/model/geometry';
-import { computeRoute, orthogonalRoute, simplify } from '../src/model/connectors';
+import { computeRoute, manualOrthogonal, orthogonalRoute, simplify } from '../src/model/connectors';
 import { SHAPES } from '../src/model/shapes';
 import { resizeShape } from '../src/components/Canvas';
 import { wrapText } from '../src/lib/textLayout';
@@ -82,6 +82,54 @@ describe('connector routing', () => {
   });
 });
 
+describe('bend points and obstacle avoidance', () => {
+  const axisAligned = (pts: { x: number; y: number }[]) =>
+    pts.every((p, i) => i === 0 || Math.abs(p.x - pts[i - 1].x) < 1e-6 || Math.abs(p.y - pts[i - 1].y) < 1e-6);
+
+  it('routes an elbow line around a shape in the way', () => {
+    const a = shape({ id: 'a', x: 0, y: 0 });
+    const b = shape({ id: 'b', x: 400, y: 0 });
+    const block = shape({ id: 'x', x: 200, y: -40, w: 80, h: 130 });
+    const shapes = new Map([['a', a], ['b', b], ['x', block]]);
+    const c = store.makeConnector({ shapeId: 'a', anchor: 'right', x: 0, y: 0 }, { shapeId: 'b', anchor: 'left', x: 0, y: 0 });
+    const r = computeRoute(c, shapes);
+    expect(axisAligned(r.points)).toBe(true);
+    // no segment may cross the blocking shape's box
+    for (let i = 1; i < r.points.length; i++) {
+      const p = r.points[i - 1], q = r.points[i];
+      const crosses = Math.max(p.x, q.x) > 200 && Math.min(p.x, q.x) < 280 && Math.max(p.y, q.y) > -40 && Math.min(p.y, q.y) < 90;
+      expect(crosses).toBe(false);
+    }
+    // without the obstacle it is a straight line
+    const r2 = computeRoute(c, new Map([['a', a], ['b', b]]));
+    expect(r2.points).toHaveLength(2);
+  });
+
+  it('keeps a manual elbow route axis-aligned when the ends move', () => {
+    const wps = [{ x: 150, y: 25 }, { x: 150, y: 200 }, { x: 300, y: 200 }];
+    const pts = manualOrthogonal({ x: 100, y: 60 }, { x: 320, y: 260 }, wps);
+    expect(axisAligned(pts)).toBe(true);
+    expect(pts[0]).toEqual({ x: 100, y: 60 });
+    expect(pts[pts.length - 1]).toEqual({ x: 320, y: 260 });
+  });
+
+  it('passes straight lines through their bend points', () => {
+    const c = { ...store.makeConnector({ x: 0, y: 0 }, { x: 100, y: 0 }, { routing: 'straight' }), waypoints: [{ x: 50, y: 80 }] };
+    expect(computeRoute(c, new Map()).points).toEqual([{ x: 0, y: 0 }, { x: 50, y: 80 }, { x: 100, y: 0 }]);
+  });
+
+  it('drops bend points when the routing style changes, and on reset', () => {
+    store.resetStore();
+    const c = { ...store.makeConnector({ x: 0, y: 0 }, { x: 100, y: 0 }, { routing: 'straight' }), waypoints: [{ x: 50, y: 80 }] };
+    store.addElements([c]);
+    store.resetRoute([c.id]);
+    expect((store.currentPage().elements[0] as typeof c).waypoints).toBeUndefined();
+    store.undo();
+    store.updateConnectorStyle([c.id], { routing: 'curved' });
+    expect((store.currentPage().elements[0] as typeof c).waypoints).toBeUndefined();
+  });
+});
+
 describe('resize', () => {
   it('keeps the opposite corner fixed', () => {
     const s = shape({ x: 0, y: 0 });
@@ -154,12 +202,103 @@ describe('store', () => {
     expect(xs[1] - xs[0]).toBe(xs[2] - xs[1]);
   });
 
+  it('puts new containers behind existing shapes', () => {
+    const a = store.addShapeAt('rectangle', { x: 0, y: 0 });
+    const c = store.addShapeAt('container', { x: 0, y: 0 });
+    expect(store.currentPage().elements.map((e) => e.id)).toEqual([c.id, a.id]);
+  });
+
   it('merges rapid style changes into one undo step', () => {
     const s = store.addShapeAt('rectangle', { x: 0, y: 0 });
     const before = store.getState().past.length;
     store.updateShapeStyle([s.id], { fill: '#111111' }, 'fill');
     store.updateShapeStyle([s.id], { fill: '#222222' }, 'fill');
     expect(store.getState().past.length).toBe(before + 1);
+  });
+});
+
+describe('groups and locks', () => {
+  beforeEach(() => store.resetStore());
+
+  const three = () => {
+    const a = store.makeShape('rectangle', { x: 0, y: 0 }, { w: 20, h: 20 });
+    const b = store.makeShape('rectangle', { x: 100, y: 40 }, { w: 20, h: 20 });
+    const c = store.makeShape('rectangle', { x: 300, y: 90 }, { w: 20, h: 20 });
+    store.addElements([a, b, c]);
+    return [a, b, c];
+  };
+
+  it('groups, expands selection to the group, and ungroups', () => {
+    const [a, b, c] = three();
+    store.setState({ selection: [a.id, b.id] });
+    store.groupSelection();
+    expect(store.expandToGroups([a.id]).sort()).toEqual([a.id, b.id].sort());
+    expect(store.expandToGroups([c.id])).toEqual([c.id]);
+    expect(store.isWholeGroup([a.id, b.id])).toBe(true);
+    store.ungroupSelection();
+    expect(store.currentPage().elements.every((e) => !e.groupId)).toBe(true);
+  });
+
+  it('gives pasted groups a new group id', () => {
+    const [a, b] = three();
+    store.setState({ selection: [a.id, b.id] });
+    store.groupSelection();
+    store.copySelection();
+    store.paste();
+    const els = store.currentPage().elements;
+    expect(els[3].groupId).toBeTruthy();
+    expect(els[3].groupId).toBe(els[4].groupId);
+    expect(els[3].groupId).not.toBe(els[0].groupId);
+  });
+
+  it('aligns a group as one unit', () => {
+    const [a, b, c] = three();
+    store.setState({ selection: [a.id, b.id] });
+    store.groupSelection();
+    store.setState({ selection: [a.id, b.id, c.id] });
+    store.alignSelection('top');
+    const [na, nb, nc] = store.currentPage().elements as Shape[];
+    expect(nb.y - na.y).toBe(40); // the group keeps its internal layout
+    expect(nc.y).toBe(na.y);
+  });
+
+  it('does not delete, nudge or resize locked items', () => {
+    const [a, b] = three();
+    store.setState({ selection: [a.id] });
+    store.toggleLockSelection();
+    store.nudgeSelection(10, 0);
+    store.updateShapeGeometry(a.id, { w: 500 });
+    store.setState({ selection: [a.id, b.id] });
+    store.deleteSelection();
+    const els = store.currentPage().elements as Shape[];
+    expect(els.map((e) => e.id)).toContain(a.id);
+    expect(els.map((e) => e.id)).not.toContain(b.id);
+    const la = els.find((e) => e.id === a.id)!;
+    expect(la).toMatchObject({ x: a.x, w: a.w, locked: true });
+    store.setState({ selection: [a.id] });
+    store.toggleLockSelection();
+    expect(store.currentPage().elements[0].locked).toBeUndefined();
+  });
+});
+
+describe('style clipboard', () => {
+  beforeEach(() => store.resetStore());
+
+  it('copies a shape style onto other shapes and a line style onto lines', () => {
+    const a = store.makeShape('rectangle', { x: 0, y: 0 });
+    const b = store.makeShape('ellipse', { x: 300, y: 0 });
+    const c1 = store.makeConnector({ x: 0, y: 0 }, { x: 10, y: 0 }, { stroke: '#ff0000', routing: 'curved' });
+    const c2 = store.makeConnector({ x: 0, y: 50 }, { x: 10, y: 50 });
+    a.style = { ...a.style, fill: '#123456', bold: true };
+    store.addElements([a, b, c1, c2]);
+    store.setState({ selection: [a.id, c1.id] });
+    expect(store.copyStyle()).toBe(true);
+    store.setState({ selection: [b.id, c2.id] });
+    store.pasteStyle();
+    const [, nb, , nc2] = store.currentPage().elements as any[];
+    expect(nb.style).toMatchObject({ fill: '#123456', bold: true });
+    expect(nc2.style.stroke).toBe('#ff0000');
+    expect(nc2.style.routing).toBe('orthogonal'); // keeps its own routing
   });
 });
 

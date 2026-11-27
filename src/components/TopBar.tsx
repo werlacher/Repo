@@ -121,6 +121,13 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
         <IconButton icon="magnet" title="Snap to grid" active={settings.snapToGrid} onClick={() => setState((s) => ({ settings: { ...s.settings, snapToGrid: !s.settings.snapToGrid } }))} />
       </div>
       <div className="spacer" />
+      <IconButton
+        icon={settings.theme === 'dark' ? 'moon' : settings.theme === 'light' ? 'sun' : 'monitor'}
+        title={`Theme: ${settings.theme === 'system' ? 'follow system' : settings.theme} (click to change)`}
+        onClick={() => setState((s) => ({
+          settings: { ...s.settings, theme: s.settings.theme === 'system' ? 'light' : s.settings.theme === 'light' ? 'dark' : 'system' },
+        }))}
+      />
       <IconButton icon="help" title="Keyboard shortcuts (?)" onClick={onHelp} />
       <button type="button" className="primary-btn" onClick={() => saveFile(false)} title={`Save (${mod}S)`}>
         <Icon name="save" size={16} /> Save
